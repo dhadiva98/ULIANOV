@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#FBF5EF" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0E0E0F" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Ulianov">
+<title>Ulianov</title>
+<link rel="icon" href="icons/icono-claro.svg">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- Logo reutilizable ------------------------------------------------------->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="logo" viewBox="0 0 512 512">
+    <g fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M133 80 H379 V298 C379 372 328 416 256 434 C184 416 133 372 133 298 Z"/>
+      <path d="M256 92 C204 132 199 184 230 203 C259 222 310 220 349 194"/>
+      <path d="M256 92 C308 132 313 184 282 203 C253 222 202 220 163 194"/>
+      <path d="M163 194 C193 260 232 338 256 400 C280 338 319 260 349 194"/>
+      <path d="M163 194 C192 250 226 264 243 241 C247 235 265 235 269 241 C286 264 320 250 349 194"/>
+    </g>
+  </symbol>
+</svg>
+
+<!-- Arranque ---------------------------------------------------------------->
+<div id="splash" class="pantalla-plena">
+  <svg class="marca marca--xl pulso"><use href="#logo"/></svg>
+</div>
+
+<!-- Nivel 1: correo y contraseña (una sola vez por dispositivo) -------------->
+<div id="login" class="pantalla-plena oculto">
+  <form class="tarjeta-acceso" id="form-login">
+    <svg class="marca marca--xl"><use href="#logo"/></svg>
+    <h1 class="marca-nombre">Ulianov</h1>
+    <p class="eyebrow">Activación del equipo</p>
+    <label class="campo">
+      <span>Correo</span>
+      <input type="email" id="login-correo" autocomplete="username" required inputmode="email">
+    </label>
+    <label class="campo">
+      <span>Contraseña</span>
+      <input type="password" id="login-clave" autocomplete="current-password" required>
+    </label>
+    <label class="campo">
+      <span>¿Qué equipo es este?</span>
+      <input type="text" id="login-equipo" placeholder="PC de recepción" required>
+      <span class="sugerencias-equipo">
+        <button type="button" class="chip" data-equipo="PC de recepción">PC de recepción</button>
+        <button type="button" class="chip" data-equipo="Celular de la dueña">Celular de la dueña</button>
+      </span>
+    </label>
+    <p class="error" id="login-error" hidden></p>
+    <button class="btn btn--principal btn--bloque" type="submit">Entrar</button>
+  </form>
+</div>
+
+<!-- Nivel 2: bloqueo por inactividad ---------------------------------------->
+<div id="bloqueo" class="pantalla-plena oculto">
+  <div class="tarjeta-acceso tarjeta-acceso--centrada">
+    <svg class="marca marca--xl"><use href="#logo"/></svg>
+    <h2 class="titulo-serif">Aplicación bloqueada</h2>
+    <p class="sub">Ingresa tu PIN para continuar</p>
+    <div class="pin-puntos" id="pin-puntos"><i></i><i></i><i></i><i></i></div>
+    <input id="pin-input" class="pin-oculto" inputmode="numeric" pattern="[0-9]*"
+           maxlength="4" autocomplete="off" aria-label="PIN de 4 dígitos">
+    <p class="error" id="pin-error" hidden></p>
+    <button class="btn btn--principal btn--bloque" id="btn-desbloquear">Desbloquear</button>
+    <div class="acciones-bloqueo">
+      <button class="enlace" id="btn-olvide-pin">¿Olvidaste tu PIN?</button>
+      <button class="enlace" id="btn-cambiar-usuario">Cambiar usuario</button>
+    </div>
+  </div>
+</div>
+
+<!-- Configuración inicial del PIN ------------------------------------------->
+<div id="crear-pin" class="pantalla-plena oculto">
+  <form class="tarjeta-acceso" id="form-pin">
+    <svg class="marca marca--xl"><use href="#logo"/></svg>
+    <h2 class="titulo-serif">Crea tu PIN</h2>
+    <p class="sub">Cuatro números para entrar cada día, sin escribir la contraseña.</p>
+    <label class="campo">
+      <span>PIN nuevo</span>
+      <input type="password" id="pin-nuevo" inputmode="numeric" maxlength="4" required>
+    </label>
+    <label class="campo">
+      <span>Repite el PIN</span>
+      <input type="password" id="pin-repite" inputmode="numeric" maxlength="4" required>
+    </label>
+    <p class="error" id="pin-crear-error" hidden></p>
+    <button class="btn btn--principal btn--bloque" type="submit">Guardar PIN</button>
+  </form>
+</div>
+
+<!-- Aplicación --------------------------------------------------------------->
+<div id="app" class="oculto">
+
+  <aside id="lateral">
+    <div class="lateral__marca">
+      <svg class="marca marca--sm"><use href="#logo"/></svg>
+      <div>
+        <strong class="marca-nombre marca-nombre--sm">Ulianov</strong>
+        <span class="eyebrow" id="lateral-rol"></span>
+      </div>
+    </div>
+    <nav id="menu"></nav>
+    <div class="lateral__pie">
+      <span class="conexion" id="conexion"><i></i><span>Conectado</span></span>
+      <button class="enlace" id="btn-salir">Cerrar sesión</button>
+    </div>
+  </aside>
+
+  <div id="velo" class="oculto"></div>
+
+  <main>
+    <header id="cabecera">
+      <button class="btn-icono solo-movil" id="btn-menu" aria-label="Menú">
+        <svg viewBox="0 0 24 24" width="24" height="24"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+      </button>
+      <h1 id="titulo-vista" class="titulo-serif"></h1>
+      <span class="conexion solo-movil" id="conexion-movil"><i></i></span>
+    </header>
+
+    <div id="aviso-dia" class="aviso oculto"></div>
+    <section id="vista"></section>
+  </main>
+
+  <button class="fab solo-movil" id="fab-nuevo" aria-label="Registrar servicio">
+    <svg viewBox="0 0 24 24" width="26" height="26"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>
+    <span>Nuevo</span>
+  </button>
+</div>
+
+<!-- Hoja inferior / modal ---------------------------------------------------->
+<div id="hoja" class="hoja oculto" role="dialog" aria-modal="true">
+  <div class="hoja__fondo"></div>
+  <div class="hoja__panel">
+    <div class="hoja__asa"></div>
+    <header class="hoja__cabecera">
+      <h2 id="hoja-titulo" class="titulo-serif"></h2>
+      <button class="btn-icono" id="hoja-cerrar" aria-label="Cerrar">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+      </button>
+    </header>
+    <div id="hoja-cuerpo"></div>
+  </div>
+</div>
+
+<div id="avisos" class="avisos" aria-live="polite"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
