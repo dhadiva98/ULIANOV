@@ -5,14 +5,14 @@
    escribir sobre la misma información centralizada. Una copia local sería
    una segunda base de datos, y eso es exactamente lo que hay que evitar.
    =========================================================================== */
-const VERSION = 'ulianov-v1';
+const VERSION = 'ulianov-v1-plano-v2';
 const ARMAZON = [
   './', './index.html', './styles.css', './config.js', './manifest.json',
-  './js/app.js', './js/core.js', './js/ui.js', './js/datos.js', './js/acceso.js',
-  './js/agenda.js', './js/registro.js', './js/catalogo.js', './js/clientes.js',
-  './js/masajistas.js', './js/asistencia.js', './js/caja.js', './js/reportes.js',
-  './js/admin.js',
-  './icons/icono-claro.svg', './icons/icon-192.png', './icons/icon-512.png'
+  './app.js', './core.js', './ui.js', './datos.js', './acceso.js',
+  './agenda.js', './registro.js', './catalogo.js', './clientes.js',
+  './masajistas.js', './asistencia.js', './caja.js', './reportes.js',
+  './admin.js',
+  './icono-claro.svg', './icon-192.png', './icon-512.png'
 ];
 
 self.addEventListener('install', e => {

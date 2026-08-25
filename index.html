@@ -8,8 +8,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Ulianov">
 <title>Ulianov</title>
-<link rel="icon" href="icons/icono-claro.svg">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icono-claro.svg">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="styles.css">
 </head>
@@ -153,8 +153,64 @@
 
 <div id="avisos" class="avisos" aria-live="polite"></div>
 
+<script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script type="module" src="js/app.js"></script>
+
+<!-- Red de seguridad: si algo falla al arrancar, se DICE en pantalla.
+     Sin esto, un error al importar un módulo deja el logo colgado y mudo. -->
+<script>
+(function () {
+  var arrancado = false;
+  window.__ulianovArrancó = function () { arrancado = true; };
+
+  function fallo(msg, detalle) {
+    var s = document.getElementById('splash');
+    if (!s) return;
+    s.innerHTML =
+      '<div style="max-width:32rem;padding:2rem;text-align:left;margin:auto">' +
+      '<p style="font:600 1.1rem/1.4 ui-serif,Georgia,serif;color:#E31B23;margin:0 0 .75rem">' +
+      'La aplicación no pudo arrancar</p>' +
+      '<p style="font:400 .95rem/1.5 system-ui;color:#A79DA1;margin:0 0 1rem">' + msg + '</p>' +
+      (detalle ? '<pre style="font:.75rem/1.4 ui-monospace,monospace;color:#6F676B;' +
+        'white-space:pre-wrap;word-break:break-word;margin:0">' + detalle + '</pre>' : '') +
+      '</div>';
+  }
+
+  window.addEventListener('error', function (e) {
+    if (arrancado) return;
+    fallo('Se produjo un error al cargar el programa.', (e.message || '') +
+          (e.filename ? '\n' + e.filename.split('/').pop() + ':' + e.lineno : ''));
+  });
+
+  window.addEventListener('load', function () {
+    if (!window.CONFIG) {
+      return fallo('Falta el archivo <b>config.js</b>, o no llegó a cargarse. ' +
+                   'Comprueba que esté subido junto al index.html.');
+    }
+    if (String(window.CONFIG.SUPABASE_URL).indexOf('TU-PROYECTO') !== -1 ||
+        String(window.CONFIG.SUPABASE_ANON).indexOf('TU-ANON-KEY') !== -1) {
+      return fallo('El archivo <b>config.js</b> todavía tiene los valores de ejemplo. ' +
+                   'Ábrelo y pega la URL y la anon key de tu proyecto de Supabase ' +
+                   '(Project Settings → API).');
+    }
+    if (!window.supabase) {
+      return fallo('No se pudo cargar la librería de Supabase. ' +
+                   'Suele ser falta de internet o un bloqueador de anuncios.');
+    }
+    // Si a los 8 segundos seguimos aquí, algo se quedó colgado.
+    setTimeout(function () {
+      if (arrancado) return;
+      var s = document.getElementById('splash');
+      if (s && !s.classList.contains('oculto')) {
+        fallo('El arranque se quedó a medias. Abre la consola del navegador ' +
+              '(F12 → Console) para ver el detalle.');
+      }
+    }, 8000);
+  });
+})();
+</script>
+
+<script type="module" src="app.js"></script>
 </body>
 </html>

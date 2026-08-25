@@ -164,6 +164,8 @@ $('#fab-nuevo').onclick  = () =>
 window.addEventListener('online',  () => { conexion('sincronizando', 'Sincronizando…'); suscribir(); });
 window.addEventListener('offline', () => conexion('sin-conexion', 'Sin conexión'));
 
+window.__ulianovArrancó?.();   // silencia la red de seguridad del index.html
+
 iniciarAcceso(() => {
   pintarMenu();
   suscribir();
