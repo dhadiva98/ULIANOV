@@ -106,15 +106,98 @@ function editar(c) {
     <button class="btn btn--principal btn--bloque" id="ce-guardar">Guardar cambios</button>`);
 
   cuerpo.querySelector('#ce-guardar').onclick = async () => {
+    const nombreNuevo = cuerpo.querySelector('#ce-nombre').value.trim();
+    const datos = {
+      id: c.id,
+      nombre: nombreNuevo || null,
+      telefono: cuerpo.querySelector('#ce-tel').value.trim() || null,
+      vip: cuerpo.querySelector('#ce-vip').checked,
+      observaciones: cuerpo.querySelector('#ce-obs').value.trim() || null
+    };
+
+    // Corregir un nombre mal escrito suele significar que ya existe la
+    // persona bien escrita. Si no se avisa aquí, quedan dos fichas idénticas
+    // y el historial de esa persona se parte en dos.
+    if (nombreNuevo && nombreNuevo !== c.nombre) {
+      const gemelo = await buscarGemelo(nombreNuevo, c.id);
+      if (gemelo) return proponerUnir(c, gemelo, datos);
+    }
+
+    await aplicar(datos);
+  };
+
+  async function aplicar(datos) {
     try {
-      await D.guardarCliente({
-        id: c.id,
-        nombre: cuerpo.querySelector('#ce-nombre').value.trim() || null,
-        telefono: cuerpo.querySelector('#ce-tel').value.trim() || null,
-        vip: cuerpo.querySelector('#ce-vip').checked,
-        observaciones: cuerpo.querySelector('#ce-obs').value.trim() || null
-      });
+      await D.guardarCliente(datos);
       avisar('Cliente actualizado', 'exito');
+      cerrarHoja();
+      vistaClientes();
+    } catch (ex) { avisar(mensajeError(ex), 'error'); }
+  }
+}
+
+// Busca un cliente distinto cuyo nombre normalizado sea idéntico.
+// Solo coincidencia exacta: para los parecidos ya está "Posibles duplicados".
+async function buscarGemelo(nombre, propioId) {
+  try {
+    const norm = s => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                        .toLowerCase().replace(/\s+/g, ' ').trim();
+    const objetivo = norm(nombre);
+    const hallados = await D.buscarClientes(nombre);
+    return hallados.find(x => x.id !== propioId && norm(x.nombre) === objetivo) || null;
+  } catch { return null; }   // si la búsqueda falla, no bloqueamos el guardado
+}
+
+// Ofrece unir en lugar de crear un duplicado. Deja salida por si de verdad
+// son dos personas distintas con el mismo nombre.
+function proponerUnir(actual, gemelo, datos) {
+  const cuerpo = abrirHoja('Ya existe alguien con ese nombre', `
+    <p class="ayuda" style="margin:0 0 18px">
+      Al corregir el nombre, esta ficha queda igual que otra que ya existe.
+      Si son la misma persona, únelas: el historial se junta y no se pierde
+      ninguna visita.</p>
+
+    <div class="tarifa" style="margin-bottom:8px">
+      <div class="tarifa__linea"><span>Ficha que estás editando</span>
+        <b>${escapar(actual.nombre || '—')}</b></div>
+      <div class="tarifa__linea"><span>Visitas</span>
+        <b>${actual.visitas ?? 0}</b></div>
+    </div>
+    <div class="tarifa" style="margin-bottom:18px">
+      <div class="tarifa__linea"><span>Ficha que ya existía</span>
+        <b>${escapar(gemelo.nombre)}</b></div>
+      <div class="tarifa__linea"><span>Visitas</span>
+        <b>${gemelo.visitas ?? 0}</b></div>
+      <div class="tarifa__linea"><span>Teléfono</span>
+        <b>${escapar(gemelo.telefono || '—')}</b></div>
+    </div>
+
+    <button class="btn btn--principal btn--bloque" id="pu-unir">
+      Unir en una sola ficha</button>
+    <button class="btn btn--neutro btn--bloque" id="pu-separado" style="margin-top:10px">
+      Son personas distintas, guardar por separado</button>`);
+
+  // Se conserva la ficha con más visitas: la otra se absorbe.
+  const propias = actual.visitas ?? 0, ajenas = gemelo.visitas ?? 0;
+  const [conservar, absorber] = propias >= ajenas
+    ? [actual.id, gemelo.id] : [gemelo.id, actual.id];
+
+  cuerpo.querySelector('#pu-unir').onclick = async () => {
+    try {
+      // Primero se corrige el nombre, para que la ficha que sobreviva
+      // quede bien escrita aunque la que se conserve sea la otra.
+      await D.guardarCliente(datos);
+      const r = await D.fusionarClientes(conservar, absorber);
+      avisar(`Unidas. Se movieron ${r.registros_movidos} registros.`, 'exito');
+      cerrarHoja();
+      vistaClientes();
+    } catch (ex) { avisar(mensajeError(ex), 'error'); }
+  };
+
+  cuerpo.querySelector('#pu-separado').onclick = async () => {
+    try {
+      await D.guardarCliente(datos);
+      avisar('Guardado como ficha separada', 'exito');
       cerrarHoja();
       vistaClientes();
     } catch (ex) { avisar(mensajeError(ex), 'error'); }
