@@ -74,6 +74,10 @@ export function reservaRapida(fecha, alGuardar) {
 export async function formularioServicio(reg, fecha, alGuardar) {
   const editando = !!reg;
   const cuerpo = abrirHoja(editando ? 'Completar atención' : 'Registrar servicio', `
+    <!-- El cliente va PRIMERO: es lo primero que se pregunta en el mostrador.
+         Antes estaba escondido dentro del desplegable y no se encontraba. -->
+    <div id="f-cliente"></div>
+
     <div id="f-masaje"></div>
     <div id="f-combinaciones"></div>
     <div id="f-tarifa"></div>
@@ -90,9 +94,8 @@ export async function formularioServicio(reg, fecha, alGuardar) {
     <div id="f-pago"></div>
 
     <details style="margin:8px 0 18px">
-      <summary style="padding:12px 0;font-weight:600;cursor:pointer">Cliente, motivo y notas</summary>
+      <summary style="padding:12px 0;font-weight:600;cursor:pointer">Motivo del descuento y notas</summary>
       <div style="padding-top:12px">
-        <div id="f-cliente"></div>
         <label class="campo"><span>Motivo del descuento</span>
           <select id="f-motivo"><option value="">Sin motivo</option>
             ${MOTIVOS.map(m => `<option>${m}</option>`).join('')}</select></label>
@@ -332,7 +335,7 @@ export async function formularioServicio(reg, fecha, alGuardar) {
   }
   pintarPago();
 
-  // === 6. Cliente y motivo ================================================
+  // === 6. Cliente (el campo va arriba del todo) y motivo ==================
   autocompletar({
     contenedor: el('#f-cliente'), etiqueta: 'Cliente', valorInicial: cliente,
     buscar: D.buscarClientes,
