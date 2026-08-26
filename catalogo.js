@@ -55,11 +55,7 @@ export async function vistaTarifario() {
         </thead>
         <tbody>
           ${m.masajes.map(ma => `<tr data-masaje="${escapar(ma)}">
-            <td class="col-fija"><button class="renom" data-tabla="masajes" data-campo="nombre"
-              data-valor="${escapar(ma)}" title="Tocar para renombrar"
-              style="background:none;border:none;padding:6px 2px;font:inherit;font-weight:600;
-                     color:inherit;text-align:left;cursor:pointer;border-bottom:1px dashed var(--borde-fuerte)">
-              ${escapar(ma)}</button></td>
+            <td class="col-fija"><strong>${escapar(ma)}</strong></td>
             ${m.modalidades.map(mo => m.porMod[mo].map(d => {
               const s = m.buscar(ma, mo, d);
               return `<td class="num">${s ? monto(s.precio_referencial)
@@ -139,7 +135,11 @@ export async function vistaServicios() {
                      cursor:pointer;border-bottom:1px dashed var(--borde-fuerte)">
               ${escapar(mo.slice(0,6))}</button> ${d}'</th>`).join('')).join('')}</tr></thead>
       <tbody>${masajes.map(ma => `<tr>
-        <td class="col-fija"><strong>${escapar(ma)}</strong></td>
+        <td class="col-fija"><button class="renom" data-tabla="masajes" data-campo="nombre"
+              data-valor="${escapar(ma)}" title="Tocar para renombrar"
+              style="background:none;border:none;padding:6px 2px;font:inherit;font-weight:600;
+                     color:inherit;text-align:left;cursor:pointer;border-bottom:1px dashed var(--borde-fuerte)">
+              ${escapar(ma)}</button></td>
         ${modalidades.map(mo => duraciones.map(d => {
           const s = m.buscar(ma, mo, d);
           return `<td class="num"><button class="celda" data-masaje="${escapar(ma)}"
