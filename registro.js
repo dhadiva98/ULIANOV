@@ -123,7 +123,12 @@ export async function formularioServicio(reg, fecha, alGuardar) {
       ? `${m.masajista.nombre} ${m.masajista.apellido || ''}`.trim()
       : m.masajista_nombre_snapshot
   })).filter(m => m.id);
-  let cliente   = reg?.cliente || null;
+  // Una reserva rápida con un nombre nuevo lo guarda en cliente_texto: todavía
+  // no existe una ficha. Si aquí solo se mirara reg.cliente, ese nombre
+  // desaparecería al abrir la reserva para completarla, y habría que volver a
+  // preguntárselo a la persona que ya está en la camilla.
+  let cliente   = reg?.cliente
+                || (reg?.cliente_texto ? { id: null, nombre: reg.cliente_texto, __texto: true } : null);
   let todos     = [];
 
   const el = s => cuerpo.querySelector(s);
