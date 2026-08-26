@@ -55,7 +55,11 @@ export async function vistaTarifario() {
         </thead>
         <tbody>
           ${m.masajes.map(ma => `<tr data-masaje="${escapar(ma)}">
-            <td class="col-fija"><strong>${escapar(ma)}</strong></td>
+            <td class="col-fija"><button class="renom" data-tabla="masajes" data-campo="nombre"
+              data-valor="${escapar(ma)}" title="Tocar para renombrar"
+              style="background:none;border:none;padding:6px 2px;font:inherit;font-weight:600;
+                     color:inherit;text-align:left;cursor:pointer;border-bottom:1px dashed var(--borde-fuerte)">
+              ${escapar(ma)}</button></td>
             ${m.modalidades.map(mo => m.porMod[mo].map(d => {
               const s = m.buscar(ma, mo, d);
               return `<td class="num">${s ? monto(s.precio_referencial)
@@ -129,7 +133,11 @@ export async function vistaServicios() {
     <div class="panel"><div class="tabla-envoltura"><table>
       <thead><tr><th class="col-fija">Masaje</th>
         ${modalidades.map(mo => duraciones.map(d =>
-          `<th class="num">${escapar(mo.slice(0,6))} ${d}'</th>`).join('')).join('')}</tr></thead>
+          `<th class="num"><button class="renom" data-tabla="modalidades" data-campo="nombre"
+              data-valor="${escapar(mo)}" title="Tocar para renombrar la modalidad"
+              style="background:none;border:none;padding:2px;font:inherit;color:inherit;
+                     cursor:pointer;border-bottom:1px dashed var(--borde-fuerte)">
+              ${escapar(mo.slice(0,6))}</button> ${d}'</th>`).join('')).join('')}</tr></thead>
       <tbody>${masajes.map(ma => `<tr>
         <td class="col-fija"><strong>${escapar(ma)}</strong></td>
         ${modalidades.map(mo => duraciones.map(d => {
@@ -168,6 +176,11 @@ export async function vistaServicios() {
       vistaServicios();
     } catch (ex) { avisar(mensajeError(ex), 'error'); }
   };
+  // Renombrar desde la propia matriz: se toca el nombre y se corrige.
+  // Antes esto solo se podía hacer desde el SQL de Supabase.
+  v.querySelectorAll('.renom').forEach(b => b.onclick = () =>
+    renombrar(b.dataset.tabla, b.dataset.campo, b.dataset.valor, vistaServicios));
+
   $('#s-masaje').onclick    = agregar('masajes', 'el masaje', 'nombre');
   $('#s-modalidad').onclick = agregar('modalidades', 'la modalidad', 'nombre');
   $('#s-duracion').onclick  = agregar('duraciones', 'la duración en minutos', 'minutos');
@@ -221,5 +234,70 @@ function editarServicio(s, recargar, opciones = null) {
       avisar('Quitado del tarifario', 'exito');
       cerrarHoja(); recargar();
     } catch (ex) { avisar(mensajeError(ex), 'error'); }
+  };
+}
+
+
+// ---------------------------------------------------------------------------
+//  Renombrar un masaje o una modalidad.
+//
+//  El cambio se propaga solo a toda la matriz de precios porque las claves
+//  foráneas están declaradas con ON UPDATE CASCADE. Lo que NO cambia es el
+//  historial ya registrado: cada atención guardó su propia copia del nombre
+//  y del precio, y así debe quedarse.
+// ---------------------------------------------------------------------------
+function renombrar(tabla, campo, valorActual, recargar) {
+  const queEs = tabla === 'masajes' ? 'el masaje' : 'la modalidad';
+
+  const cuerpo = abrirHoja(`Renombrar ${queEs}`, `
+    <label class="campo"><span>Nombre</span>
+      <input type="text" id="rn-nombre" value="${escapar(valorActual)}"></label>
+
+    <p class="ayuda" style="margin:-6px 0 18px">
+      Se corrige en toda la matriz de precios de una vez. Las atenciones ya
+      registradas conservan el nombre que tenían: su historial no se toca.</p>
+
+    <p class="error" id="rn-error" hidden></p>
+    <button class="btn btn--principal btn--bloque" id="rn-ok">Guardar</button>
+    <button class="btn btn--peligro btn--bloque" id="rn-borrar" style="margin-top:10px">
+      Eliminar ${queEs}</button>`);
+
+  const err = cuerpo.querySelector('#rn-error');
+  const fallo = m => { err.textContent = m; err.hidden = false; };
+
+  cuerpo.querySelector('#rn-ok').onclick = async () => {
+    const nuevo = cuerpo.querySelector('#rn-nombre').value.trim();
+    if (!nuevo)                return fallo('El nombre no puede quedar vacío.');
+    if (nuevo === valorActual) return cerrarHoja();
+    try {
+      await D.renombrarCatalogo(tabla, campo, valorActual, nuevo);
+      avisar('Nombre corregido en toda la matriz', 'exito');
+      cerrarHoja(); recargar();
+    } catch (ex) {
+      const m = mensajeError(ex);
+      fallo(/duplicad|unique/i.test(m)
+        ? `Ya existe ${queEs} con ese nombre.`
+        : m);
+    }
+  };
+
+  cuerpo.querySelector('#rn-borrar').onclick = async () => {
+    const ok = await confirmar({
+      titulo: `Eliminar ${queEs}`, aceptar: 'Eliminar', peligro: true,
+      texto: `Solo se puede eliminar si no tiene ningún precio cargado. ` +
+             `Las atenciones ya registradas no se ven afectadas.`
+    });
+    if (!ok) return;
+    try {
+      await D.borrarDelCatalogo(tabla, campo, valorActual);
+      avisar('Eliminado', 'exito');
+      cerrarHoja(); recargar();
+    } catch (ex) {
+      const m = mensajeError(ex);
+      fallo(/foreign key|viola/i.test(m)
+        ? `No se puede eliminar: todavía tiene precios cargados en la matriz. ` +
+          `Borra primero esos precios.`
+        : m);
+    }
   };
 }

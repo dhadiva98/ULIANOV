@@ -102,6 +102,15 @@ export const listasCatalogo = async () => ({
 
 export const agregarAlCatalogo = (tabla, fila) => sb.from(tabla).insert(fila).then(ok);
 
+// Renombrar propaga solo: las claves foráneas tienen ON UPDATE CASCADE.
+// Los registros ya guardados NO cambian, porque llevan su propia copia
+// del nombre y del precio del momento en que se hicieron.
+export const renombrarCatalogo = (tabla, campo, viejo, nuevo) =>
+  sb.from(tabla).update({ [campo]: nuevo }).eq(campo, viejo).then(ok);
+
+export const borrarDelCatalogo = (tabla, campo, valor) =>
+  sb.from(tabla).delete().eq(campo, valor).then(ok);
+
 // ===========================  MASAJISTAS  ==================================
 
 export const masajistas = (filtro = 'todas') => {
