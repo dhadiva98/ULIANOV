@@ -88,10 +88,20 @@ export const servicios = (soloActivos = true) => {
   return q.order('masaje').order('modalidad').order('duracion').then(ok);
 };
 
+// Quitar una combinación del tarifario NO la borra: la marca inactiva, porque
+// puede tener historial colgando. La matriz solo muestra las activas, así que
+// la celda se ve vacía aunque la fila siga existiendo.
+//
+// Por eso aquí no vale un insert a secas: chocaría con la restricción
+// servicios_masaje_modalidad_duracion_key. Se usa upsert sobre esa misma
+// clave, de modo que volver a poner un precio reactiva la fila de siempre
+// en lugar de intentar crear una nueva.
 export const guardarServicio = (s) => {
   const { id, ...resto } = s;
-  return id ? sb.from('servicios').update(resto).eq('id', id).then(ok)
-            : sb.from('servicios').insert(resto).then(ok);
+  if (id) return sb.from('servicios').update(resto).eq('id', id).then(ok);
+  return sb.from('servicios')
+           .upsert(resto, { onConflict: 'masaje,modalidad,duracion' })
+           .then(ok);
 };
 
 export const listasCatalogo = async () => ({

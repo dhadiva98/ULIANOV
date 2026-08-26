@@ -136,6 +136,23 @@ export function mensajeError(e) {
   if (/row-level security|permission denied/i.test(m))
     return 'Tu usuario no tiene permiso para hacer eso.';
   if (/duplicate key.*cierres/i.test(m))       return 'Este día ya fue cerrado.';
+  if (/duplicate key.*servicios_masaje/i.test(m))
+    return 'Esa combinación ya existe en el tarifario, aunque esté quitada. ' +
+           'Vuelve a intentarlo: se reactivará la de siempre.';
+  if (/duplicate key.*asistencias/i.test(m))   return 'Esa asistencia ya estaba registrada para ese día.';
+  if (/duplicate key/i.test(m))                return 'Ya existe un registro igual.';
+  if (/violates foreign key.*masajes/i.test(m))
+    return 'No se puede eliminar ese masaje: todavía tiene precios cargados en la matriz.';
+  if (/violates foreign key.*modalidades/i.test(m))
+    return 'No se puede eliminar esa modalidad: todavía tiene precios cargados en la matriz.';
+  if (/violates foreign key/i.test(m))
+    return 'No se puede eliminar: hay otros datos que dependen de esto.';
+  if (/violates check constraint.*efectivo/i.test(m))
+    return 'El efectivo recibido no alcanza para cubrir el total.';
+  if (/violates check constraint.*atendido/i.test(m))
+    return 'Para marcarlo como atendido faltan datos obligatorios.';
+  if (/violates not-null|null value in column/i.test(m))
+    return 'Falta rellenar un campo obligatorio.';
   if (/Failed to fetch|NetworkError/i.test(m)) return 'Sin conexión. Revisa tu internet e inténtalo de nuevo.';
   if (/JWT|token/i.test(m))                    return 'La sesión caducó. Vuelve a entrar.';
   console.error('[Ulianov]', e);               // el detalle técnico, solo en consola
