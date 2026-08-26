@@ -137,6 +137,28 @@ button { cursor: pointer; }
   min-height: 50px; color: var(--tinta);
 }
 .campo textarea { min-height: 84px; resize: vertical; font-size: 16px; }
+
+/* Hora y fecha.
+   Safari en iOS les da su propio aspecto: centra el contenido y estira el
+   campo a todo el ancho, así que la hora quedaba desalineada respecto a los
+   demás campos y ocupaba una franja enorme. Se les quita el aspecto nativo,
+   se alinean a la izquierda como el resto y se limita el ancho al contenido. */
+.campo input[type="time"],
+.campo input[type="date"] {
+  -webkit-appearance: none; appearance: none;
+  text-align: left;
+  width: auto; min-width: 10.5rem; max-width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+/* El icono de reloj/calendario de Safari se acerca al texto en vez de
+   quedarse pegado al borde derecho de un campo vacío. */
+.campo input[type="time"]::-webkit-date-and-time-value,
+.campo input[type="date"]::-webkit-date-and-time-value { text-align: left; }
+
+.campo input[type="time"]::-webkit-calendar-picker-indicator,
+.campo input[type="date"]::-webkit-calendar-picker-indicator {
+  margin-left: 6px; opacity: .55;
+}
 .campo input:focus, .campo select:focus, .campo textarea:focus {
   outline: none; border-color: var(--rojo); box-shadow: 0 0 0 3px var(--rojo-tenue);
 }
