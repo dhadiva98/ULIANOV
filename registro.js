@@ -82,8 +82,12 @@ export async function formularioServicio(reg, fecha, alGuardar) {
     <div id="f-combinaciones"></div>
     <div id="f-tarifa"></div>
 
-    <label class="campo"><span>Hora de ingreso</span>
-      <input type="time" id="f-hora" value="${reg?.hora_ingreso?.slice(0,5) || horaAhora()}"></label>
+    <div class="fila">
+      <label class="campo"><span>Día</span>
+        <input type="date" id="f-fecha" value="${reg?.fecha || fecha}"></label>
+      <label class="campo"><span>Hora de ingreso</span>
+        <input type="time" id="f-hora" value="${reg?.hora_ingreso?.slice(0,5) || horaAhora()}"></label>
+    </div>
     <p class="ayuda" id="f-termina" style="margin:-10px 0 18px"></p>
 
     <div id="f-masajista"></div>
@@ -146,8 +150,13 @@ export async function formularioServicio(reg, fecha, alGuardar) {
     },
     pintar: m => ({ titulo: m.masaje }),
     alElegir: async m => {
-      masaje = m?.masaje || null;
-      servicio = null;
+      const nuevoMasaje = m?.masaje || null;
+      // OJO: el autocompletado llama a alElegir también al pintar el valor
+      // inicial. Si aquí se borrara el servicio siempre, al abrir un registro
+      // para corregir solo la hora se perdería la modalidad y el tiempo ya
+      // elegidos. Solo se limpia cuando el masaje CAMBIA de verdad.
+      if (nuevoMasaje !== masaje) servicio = null;
+      masaje = nuevoMasaje;
       await pintarCombinaciones();
       pintarTarifa();
     }
@@ -364,7 +373,9 @@ export async function formularioServicio(reg, fecha, alGuardar) {
     const c = cliente;
     return {
       estado: estadoDestino,
-      fecha,
+      // La fecha sale del campo, no del día que se está mirando: así se puede
+      // mover un registro a otro día sin tener que borrarlo y rehacerlo.
+      fecha: el('#f-fecha').value || fecha,
       hora_ingreso: el('#f-hora').value || null,
       servicio_id: servicio?.id || null,
       precio_referencial: servicio ? servicio.precio_referencial : null,
@@ -399,7 +410,7 @@ export async function formularioServicio(reg, fecha, alGuardar) {
       // Aviso de cruce de horarios: advierte, no bloquea.
       if (el('#f-hora').value && ms.length) {
         try {
-          const choques = await D.avisoSolapamiento(ms, fecha, el('#f-hora').value,
+          const choques = await D.avisoSolapamiento(ms, el('#f-fecha').value || fecha, el('#f-hora').value,
                                                     servicio.duracion, reg?.id || null);
           if (choques?.length) {
             const c = choques[0];

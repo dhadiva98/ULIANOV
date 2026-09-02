@@ -61,6 +61,11 @@ export const guardarRegistro = (datos, masajistas = [], id = null) =>
 export const borrarRegistro = id =>
   sb.from('registros_servicios').delete().eq('id', id).then(ok);
 
+// Anular ya no es un camino de ida: la administración puede revertirlo.
+// El servidor decide a qué estado vuelve según los datos que tenga el registro.
+export const desanularRegistro = id =>
+  sb.rpc('desanular_registro', { p_id: id }).then(ok);
+
 // Una atención NUNCA se borra: solo baja lógica con motivo obligatorio.
 export const anularRegistro = (id, motivo) =>
   sb.from('registros_servicios')

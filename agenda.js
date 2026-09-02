@@ -207,9 +207,37 @@ export function detalle(r, recargar) {
       <div class="barra-acciones" style="margin:22px 0 0">
         <button class="btn btn--neutro" id="d-editar" style="flex:1">Corregir</button>
         <button class="btn btn--peligro" id="d-anular" style="flex:1">Anular</button>
-      </div>` : ''}`);
+      </div>` : ''}
+    ${esAdmin() && r.anulado ? `
+      <p class="ayuda" style="margin:18px 0 10px">
+        Solo la administración ve los registros anulados. En recepción no aparecen.</p>
+      <button class="btn btn--principal btn--bloque" id="d-desanular">
+        Quitar la anulación</button>` : ''}`);
 
-  if (!esAdmin() || r.anulado) return;
+  if (!esAdmin()) return;
+
+  // Anular dejó de ser irreversible: equivocarse al anular ya no obliga a
+  // rehacer el registro entero.
+  const desanular = cuerpo.querySelector('#d-desanular');
+  if (desanular) {
+    desanular.onclick = async () => {
+      const ok = await confirmar({
+        titulo: 'Quitar la anulación',
+        texto: 'El registro vuelve a contar en la caja y en los reportes, ' +
+               'y el cierre del día se recalcula solo.',
+        aceptar: 'Quitar la anulación'
+      });
+      if (!ok) return;
+      try {
+        await D.desanularRegistro(r.id);
+        avisar('El registro vuelve a estar activo', 'exito');
+        cerrarHoja(); recargar?.();
+      } catch (ex) { avisar(mensajeError(ex), 'error'); }
+    };
+    return;
+  }
+
+  if (r.anulado) return;
 
   cuerpo.querySelector('#d-editar').onclick = () => {
     cerrarHoja();
