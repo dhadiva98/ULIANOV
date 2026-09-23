@@ -127,6 +127,31 @@ export function nombreVivo(relacion, snapshot, campo = 'nombre_completo') {
 }
 
 // Traduce los errores crudos de PostgreSQL a algo que una persona entienda.
+// ---------------------------------------------------------------------------
+//  PAGO DE UNA MASAJISTA — espejo exacto de la función pago_de_masajista()
+//  del servidor. Aquí solo sirve para MOSTRAR lo que se va a pagar mientras
+//  se llena el formulario. El número que de verdad se guarda lo calcula el
+//  servidor, no esta función: si alguna vez discrepan, manda el servidor.
+// ---------------------------------------------------------------------------
+const r2 = x => Math.round((x + Number.EPSILON) * 100) / 100;
+const t2 = x => Math.floor(x * 100 + 1e-9) / 100;
+
+export function pagoPrevisto(precio, requeridas, reparto, orden, cfg) {
+  const p = Number(precio);
+  if (!(p > 0)) return null;
+
+  const n    = Math.max(Number(requeridas) || 1, 1);
+  const pool = r2(p * (cfg?.porcentaje ?? 40) / 100);
+
+  if (reparto === 'principal_apoyo')
+    return orden <= 1 ? pool : Number(cfg?.apoyo ?? 25);
+
+  // Se divide entre las que el tarifario exige, no entre las registradas:
+  // un 4 manos con una sola masajista le paga a ella solo su mitad.
+  const base = t2(pool / n);
+  return orden <= 1 ? r2(pool - base * (n - 1)) : base;
+}
+
 export function mensajeError(e) {
   const m = String(e?.message || e || '');
   if (/masajistas activas|no existe/i.test(m)) return m.replace(/^.*?:\s*/, '');

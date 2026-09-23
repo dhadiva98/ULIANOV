@@ -16,7 +16,7 @@ const REGISTRO = `
   anulado, motivo_anulacion, motivo_cancelacion, atendido_en,
   servicio_id, servicio_nombre_snapshot, cliente_id, cliente_texto, usuario_id,
   servicio:servicios ( id, masaje, modalidad, duracion, nombre_completo,
-                       precio_referencial, terapeutas_requeridas ),
+                       precio_referencial, terapeutas_requeridas, pago_reparto ),
   cliente:clientes ( id, nombre, telefono, vip, visitas, ultima_visita ),
   masajistas:registro_masajistas (
     orden, masajista_id, masajista_nombre_snapshot,
@@ -116,6 +116,49 @@ export const listasCatalogo = async () => ({
 });
 
 export const agregarAlCatalogo = (tabla, fila) => sb.from(tabla).insert(fila).then(ok);
+
+// ---------------------------------------------------------------------------
+//  PAGO A LAS MASAJISTAS
+//
+//  El porcentaje y el monto de la señorita de apoyo viven en la tabla de
+//  configuración, no escritos dentro del programa: la administradora los
+//  cambia desde Configuración y el sistema los toma de ahí.
+//  Se guardan en memoria durante la sesión para no preguntarlos en cada tecla.
+// ---------------------------------------------------------------------------
+let _cfgPagos = null;
+
+export async function configPagos(recargar = false) {
+  if (_cfgPagos && !recargar) return _cfgPagos;
+  try {
+    const filas = await sb.from('configuracion').select('clave, valor')
+      .in('clave', ['pago_porcentaje', 'pago_apoyo_monto']).then(ok);
+    const v = c => filas.find(f => f.clave === c)?.valor;
+    _cfgPagos = {
+      porcentaje: Number(v('pago_porcentaje')) || 40,
+      apoyo:      Number(v('pago_apoyo_monto')) || 25
+    };
+  } catch {
+    _cfgPagos = { porcentaje: 40, apoyo: 25 };   // nunca dejar la pantalla sin números
+  }
+  return _cfgPagos;
+}
+
+export const guardarConfigPagos = async (porcentaje, apoyo) => {
+  const r = await sb.from('configuracion').upsert([
+    { clave: 'pago_porcentaje',  valor: String(porcentaje) },
+    { clave: 'pago_apoyo_monto', valor: String(apoyo) }
+  ], { onConflict: 'clave' }).then(ok);
+  _cfgPagos = null;              // se vuelve a leer del servidor
+  return r;
+};
+
+// Reporte de pagos y detalle de un registro. Ambos son SOLO ADMIN: la
+// barrera está en el servidor, no en que la pantalla no muestre el botón.
+export const reportePagos = (desde, hasta) =>
+  sb.rpc('reporte_pagos', { p_desde: desde, p_hasta: hasta }).then(ok);
+
+export const pagosDeRegistro = id =>
+  sb.rpc('pagos_de_registro', { p_id: id }).then(ok);
 
 // Renombrar propaga solo: las claves foráneas tienen ON UPDATE CASCADE.
 // Los registros ya guardados NO cambian, porque llevan su propia copia

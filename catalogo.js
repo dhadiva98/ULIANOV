@@ -200,10 +200,55 @@ function editarServicio(s, recargar, opciones = null) {
         <option value="1" ${s.terapeutas_requeridas == 1 ? 'selected' : ''}>Una</option>
         <option value="2" ${s.terapeutas_requeridas == 2 ? 'selected' : ''}>Dos</option>
       </select></label>
+
+    <!-- Solo tiene sentido preguntarlo cuando atienden dos. Es lo que
+         distingue un 4 manos (se parte el porcentaje) de un Sorpresa
+         (la principal cobra el porcentaje entero y la de apoyo un fijo). -->
+    <label class="campo ${s.terapeutas_requeridas == 2 ? '' : 'oculto'}" id="e-reparto-caja">
+      <span>¿Cómo se reparte el pago entre las dos?</span>
+      <select id="e-reparto">
+        <option value="porcentaje_dividido"
+          ${s.pago_reparto !== 'principal_apoyo' ? 'selected' : ''}>
+          En partes iguales — mitad y mitad</option>
+        <option value="principal_apoyo"
+          ${s.pago_reparto === 'principal_apoyo' ? 'selected' : ''}>
+          Principal + apoyo — la principal cobra todo el porcentaje y la de apoyo un monto fijo</option>
+      </select></label>
+    <p class="ayuda ${s.terapeutas_requeridas == 2 ? '' : 'oculto'}" id="e-reparto-ayuda"
+       style="margin:-8px 0 18px"></p>
+
     <div class="barra-acciones" style="margin:0">
       ${s.id ? '<button class="btn btn--peligro" id="e-quitar" style="flex:1">Quitar del tarifario</button>' : ''}
       <button class="btn btn--principal" id="e-guardar" style="flex:1.4">Guardar</button>
     </div>`);
+
+  // El bloque del reparto solo aparece con dos masajistas, y debajo se
+  // muestra en soles lo que le tocaría a cada una con el precio escrito.
+  // Ver el número concreto evita configurarlo mal sin darse cuenta.
+  const sincronizarReparto = async () => {
+    const dos = cuerpo.querySelector('#e-terapeutas').value === '2';
+    cuerpo.querySelector('#e-reparto-caja').classList.toggle('oculto', !dos);
+    const ayuda = cuerpo.querySelector('#e-reparto-ayuda');
+    ayuda.classList.toggle('oculto', !dos && !cuerpo.querySelector('#e-precio').value);
+
+    const precio = numero(cuerpo.querySelector('#e-precio').value);
+    if (!(precio > 0)) { ayuda.textContent = ''; return; }
+
+    const cfg  = await D.configPagos();
+    const pool = precio * cfg.porcentaje / 100;
+    const rep  = dos ? cuerpo.querySelector('#e-reparto').value : 'porcentaje_dividido';
+
+    ayuda.classList.remove('oculto');
+    ayuda.textContent = !dos
+      ? `La masajista gana ${monto(pool)} (${cfg.porcentaje}% de ${monto(precio)}).`
+      : rep === 'principal_apoyo'
+        ? `La principal gana ${monto(pool)} y la de apoyo ${monto(cfg.apoyo)}. `
+          + `El spa paga ${monto(pool + cfg.apoyo)} en total.`
+        : `Cada una gana ${monto(pool / 2)}. El spa paga ${monto(pool)} en total.`;
+  };
+  ['#e-terapeutas', '#e-reparto', '#e-precio'].forEach(sel =>
+    cuerpo.querySelector(sel)?.addEventListener('input', sincronizarReparto));
+  sincronizarReparto();
 
   cuerpo.querySelector('#e-guardar').onclick = async () => {
     const precio = numero(cuerpo.querySelector('#e-precio').value);
@@ -213,6 +258,9 @@ function editarServicio(s, recargar, opciones = null) {
         id: s.id, masaje: s.masaje, modalidad: s.modalidad, duracion: s.duracion,
         precio_referencial: precio,
         terapeutas_requeridas: Number(cuerpo.querySelector('#e-terapeutas').value),
+        pago_reparto: Number(cuerpo.querySelector('#e-terapeutas').value) === 2
+          ? cuerpo.querySelector('#e-reparto').value
+          : 'porcentaje_dividido',
         activo: true
       });
       avisar('Precio guardado', 'exito');

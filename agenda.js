@@ -203,6 +203,7 @@ export function detalle(r, recargar) {
         <span class="eyebrow">Nota interna</span>
         <p style="margin:8px 0 0">${escapar(r.notas)}</p></div></div>` : ''}
     ${r.anulado ? `<p class="error" style="margin-top:16px">Anulado: ${escapar(r.motivo_anulacion || '')}</p>` : ''}
+    <div id="d-pagos"></div>
     ${esAdmin() && !r.anulado ? `
       <div class="barra-acciones" style="margin:22px 0 0">
         <button class="btn btn--neutro" id="d-editar" style="flex:1">Corregir</button>
@@ -213,6 +214,24 @@ export function detalle(r, recargar) {
         Solo la administración ve los registros anulados. En recepción no aparecen.</p>
       <button class="btn btn--principal btn--bloque" id="d-desanular">
         Quitar la anulación</button>` : ''}`);
+
+  // Lo que cobra cada masajista. Lo trae una función del servidor que exige
+  // ser administradora; si es recepción, no se muestra nada.
+  (async () => {
+    const caja = cuerpo.querySelector('#d-pagos');
+    if (!caja || !esAdmin()) return;
+    try {
+      const pagos = await D.pagosDeRegistro(r.id);
+      if (!pagos.length) return;
+      caja.innerHTML = `
+        <div class="tarifa" style="margin-top:16px">
+          <span class="eyebrow" style="display:block;margin-bottom:8px">Pago a las masajistas</span>
+          ${pagos.map(x => `<div class="tarifa__linea">
+              <span>${escapar(x.masajista)}${x.detalle ? ` · ${escapar(x.detalle)}` : ''}</span>
+              <span>${x.pago == null ? '—' : monto(x.pago)}</span></div>`).join('')}
+        </div>`;
+    } catch (_) { /* recepción: sin panel, sin ruido */ }
+  })();
 
   if (!esAdmin()) return;
 

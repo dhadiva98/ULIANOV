@@ -96,6 +96,8 @@ async function generar() {
         </div></div>
       </div>
 
+      <div class="panel" id="rp-pagos"></div>
+
       <div class="panel">
         <div class="panel__cabecera"><span class="eyebrow">Rendimiento por masajista</span></div>
         <div class="tabla-envoltura"><table>
@@ -128,6 +130,40 @@ async function generar() {
         <button class="btn btn--neutro" id="x-clientes">Descargar clientes</button>
         <button class="btn btn--neutro" id="x-asistencia">Descargar asistencia</button>
       </div>`;
+
+    // --- Lo que se paga a cada masajista -----------------------------------
+    // Va por una función del servidor que exige ser administradora. Si quien
+    // mira es recepción, el servidor se niega y el panel simplemente no sale.
+    const cajaPagos = salida.querySelector('#rp-pagos');
+    try {
+      const pagos = await D.reportePagos(desde, hasta);
+      const totalPagos = pagos.reduce((s, x) => s + numero(x.pago), 0);
+
+      cajaPagos.innerHTML = !pagos.length
+        ? ''
+        : `<div class="panel__cabecera"><span class="eyebrow">Pago a las masajistas</span></div>
+           <div class="tabla-envoltura"><table>
+             <thead><tr><th>Masajista</th><th class="num">Servicios</th>
+               <th class="num">A pagar</th></tr></thead>
+             <tbody>${pagos.map(x => `<tr>
+               <td>${escapar(x.masajista)}</td>
+               <td class="num">${x.servicios}</td>
+               <td class="num"><strong>${monto(x.pago)}</strong></td></tr>`).join('')}
+             </tbody>
+             <tfoot><tr><td><strong>Total a pagar</strong></td><td class="num"></td>
+               <td class="num"><strong>${monto(totalPagos)}</strong></td></tr></tfoot>
+           </table></div>
+           <div class="panel__cuerpo" style="border-top:1px solid var(--borde)">
+             <p class="ayuda" style="margin:0">De ${monto(real)} vendidos, ${monto(totalPagos)}
+                van a las masajistas y ${monto(real - totalPagos)} quedan en el spa, antes de
+                alquiler, luz, insumos y recepción.
+                ${pagos.some(x => !numero(x.pago))
+                   ? ' Las que aparecen en cero son masajes del régimen anterior, anteriores al cambio de pago.'
+                   : ''}</p>
+           </div>`;
+    } catch (_) {
+      cajaPagos.remove();          // recepción: el panel no existe, sin ruido
+    }
 
     $('#x-ventas').onclick = () => exportarVentas(regs, desde, hasta);
     $('#x-clientes').onclick = exportarClientes;

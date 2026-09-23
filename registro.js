@@ -6,7 +6,7 @@
 //  cobrar editable justo debajo.
 // ===========================================================================
 import { estado, hoy, horaAhora, hora12, sumarMinutos, monto, numero,
-         escapar, mensajeError, vibrar } from './core.js';
+         escapar, mensajeError, vibrar, esAdmin, pagoPrevisto } from './core.js';
 import { $, abrirHoja, cerrarHoja, avisar, confirmar, autocompletar } from './ui.js';
 import * as D from './datos.js';
 
@@ -90,10 +90,10 @@ export async function formularioServicio(reg, fecha, alGuardar) {
     </div>
     <p class="ayuda" id="f-termina" style="margin:-10px 0 18px"></p>
 
-    <div id="f-masajista"></div>
-    <label class="casilla"><input type="checkbox" id="f-varias">
-      <span>Más de una masajista</span></label>
-    <div id="f-extras"></div>
+    <!-- Cuántas masajistas atienden lo decide el TARIFARIO, no quien registra.
+         Antes había una casilla que cualquiera podía desmarcar; ahora los
+         campos salen solos según el servicio elegido. -->
+    <div id="f-masajistas"></div>
 
     <div id="f-pago"></div>
 
@@ -194,10 +194,7 @@ export async function formularioServicio(reg, fecha, alGuardar) {
       caja.querySelectorAll('.duracion').forEach(x => x.classList.toggle('elegida', x === b));
       vibrar(10);
       pintarTarifa();
-      // 4 Manos y similares: marcar sola la casilla, para ahorrar el clic.
-      if (servicio.terapeutas_requeridas > 1 && !el('#f-varias').checked) {
-        el('#f-varias').checked = true; pintarExtras();
-      }
+      pintarMasajistas();   // el servicio manda cuántas srtas hacen falta
     });
   }
 
@@ -255,54 +252,111 @@ export async function formularioServicio(reg, fecha, alGuardar) {
   el('#f-hora').addEventListener('input', actualizarTermina);
 
   // === 4. Masajistas ======================================================
-  const bPrincipal = autocompletar({
-    contenedor: el('#f-masajista'),
-    etiqueta: 'Masajista', requerido: true,
-    valorInicial: masajistas[0] || null,
-    buscar: D.buscarMasajistas,
-    pintar: m => ({ titulo: m.display }),
-    alElegir: m => { masajistas[0] = m || undefined; }
-  });
+  //
+  //  Cuántas atienden lo decide el TARIFARIO (terapeutas_requeridas), y cómo
+  //  se reparte el pago también (pago_reparto). Quien registra no puede
+  //  cambiarlo: solo la administración, y desde Servicios.
+  //
+  //  Si el servicio pide dos y solo se alcanza a anotar una, se guarda igual
+  //  —no se bloquea el cobro con el cliente delante— pero queda avisado en
+  //  pantalla y esa masajista cobra solo su mitad.
+  // ------------------------------------------------------------------------
+  let cfgPagos = { porcentaje: 40, apoyo: 25 };
+  D.configPagos().then(c => { cfgPagos = c; pintarPagos(); });
 
-  const extras = [];
-  function pintarExtras() {
-    const caja = el('#f-extras');
-    if (!el('#f-varias').checked) { caja.innerHTML = ''; extras.length = 0; masajistas.length = 1; return; }
-    if (caja.children.length) return;
-    agregarExtra(masajistas[1] || null);
-    caja.insertAdjacentHTML('beforeend',
-      `<button type="button" class="enlace" id="f-mas">+ Agregar otra</button>`);
-    caja.querySelector('#f-mas').onclick = () => {
-      agregarExtra(null);
-      caja.append(caja.querySelector('#f-mas'));
-    };
+  let firma = null;              // para repintar solo cuando de verdad cambia
+  let extraCampos = 0;           // huecos que la administradora pidió a mano
+  const buscadores = [];
+
+  function pintarMasajistas() {
+    const caja = el('#f-masajistas');
+    const req  = Number(servicio?.terapeutas_requeridas) || 1;
+    const rep  = servicio?.pago_reparto || 'porcentaje_dividido';
+    const apoyo = rep === 'principal_apoyo';
+
+    // Nunca se quitan campos que ya tienen a alguien elegida, ni los huecos
+    // que la administradora abrió a mano.
+    const puestas = masajistas.filter(Boolean).length;
+    const n = Math.max(req, puestas + extraCampos, 1);
+
+    const nuevaFirma = `${n}|${apoyo}`;
+    if (nuevaFirma === firma) { pintarPagos(); return; }
+    firma = nuevaFirma;
+
+    caja.innerHTML = '';
+    buscadores.length = 0;
+
+    for (let i = 0; i < n; i++) {
+      const etiqueta = !apoyo
+        ? (n === 1 ? 'Masajista' : `Masajista ${i + 1}`)
+        : (i === 0 ? 'Masajista principal' : 'Señorita de apoyo');
+
+      const fila = document.createElement('div');
+      const hueco = document.createElement('div');
+      fila.append(hueco);
+      caja.append(fila);
+
+      const pie = document.createElement('p');
+      pie.className = 'ayuda';
+      pie.style.cssText = 'margin:-10px 0 14px';
+      pie.dataset.pago = String(i);
+      caja.append(pie);
+
+      buscadores.push(autocompletar({
+        contenedor: hueco,
+        etiqueta,
+        requerido: i < req,   // si el servicio pide dos, la segunda no es opcional
+        valorInicial: masajistas[i] || null,
+        buscar: D.buscarMasajistas,
+        pintar: m => ({ titulo: m.display }),
+        alElegir: m => { masajistas[i] = m || undefined; pintarPagos(); }
+      }));
+    }
+
+    // Salida de emergencia, solo para la administradora: un caso raro en que
+    // de verdad entró una tercera. Recepción no la ve.
+    if (esAdmin()) {
+      const mas = document.createElement('button');
+      mas.type = 'button'; mas.className = 'enlace';
+      mas.textContent = '+ Agregar otra masajista';
+      mas.onclick = () => { extraCampos++; firma = null; pintarMasajistas(); };
+      caja.append(mas);
+    }
+
+    pintarPagos();
   }
 
-  function agregarExtra(valor) {
-    const caja = el('#f-extras');
-    const fila = document.createElement('div');
-    fila.style.cssText = 'display:flex;gap:8px;align-items:flex-end';
-    const hueco = document.createElement('div'); hueco.style.flex = '1';
-    const quitar = document.createElement('button');
-    quitar.type = 'button'; quitar.className = 'btn-icono'; quitar.setAttribute('aria-label', 'Quitar');
-    quitar.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>';
-    quitar.style.marginBottom = '16px';
-    fila.append(hueco, quitar);
-    caja.append(fila);
+  // Debajo de cada masajista, lo que va a cobrar. Solo la administración:
+  // recepción registra sin ver montos de pago, igual que no ve la Caja.
+  function pintarPagos() {
+    const caja = el('#f-masajistas');
+    if (!caja) return;
+    const req = Number(servicio?.terapeutas_requeridas) || 1;
+    const rep = servicio?.pago_reparto || 'porcentaje_dividido';
 
-    const idx = extras.length;
-    const b = autocompletar({
-      contenedor: hueco, etiqueta: `Masajista ${idx + 2}`, valorInicial: valor,
-      buscar: D.buscarMasajistas, pintar: m => ({ titulo: m.display }),
-      alElegir: m => extras[idx] = m
+    caja.querySelectorAll('[data-pago]').forEach(pie => {
+      const i = Number(pie.dataset.pago);
+      const falta = i < req && !masajistas[i];
+
+      if (falta) {
+        pie.style.color = 'var(--rojo)';
+        pie.textContent =
+          i === 0                   ? 'Falta elegir a la masajista.'
+        : rep === 'principal_apoyo' ? 'Falta la señorita de apoyo. Se puede guardar igual, '
+                                    + 'pero entonces nadie cobrará ese monto.'
+        :                             'Falta la segunda. Se puede guardar igual, pero la '
+                                    + 'primera cobrará solo su parte.';
+        return;
+      }
+      pie.style.color = '';
+      if (!esAdmin() || !servicio || !masajistas[i]) { pie.textContent = ''; return; }
+
+      const m = pagoPrevisto(servicio.precio_referencial, req, rep, i + 1, cfgPagos);
+      pie.textContent = m == null ? '' : `Cobra ${monto(m)}`;
     });
-    extras.push(valor);
-    quitar.onclick = () => { extras[idx] = null; fila.remove(); };
   }
 
-  el('#f-varias').checked = masajistas.length > 1;
-  el('#f-varias').onchange = pintarExtras;
-  pintarExtras();
+  pintarMasajistas();
 
   // === 5. Forma de pago, dinero recibido y vuelto =========================
   function pintarPago() {
@@ -365,8 +419,11 @@ export async function formularioServicio(reg, fecha, alGuardar) {
   if (reg?.motivo_descuento) el('#f-motivo').value = reg.motivo_descuento;
 
   // === 7. Guardar ==========================================================
+  // El ORDEN importa: la primera es la principal, y en Sorpresa es quien
+  // cobra el porcentaje. Por eso se recorre por posición y se descartan los
+  // huecos al final, sin reordenar lo que ya eligió la persona.
   const listaMasajistas = () =>
-    [bPrincipal.valor(), ...extras].filter(Boolean).map(m => m.id)
+    buscadores.map(b => b.valor()).filter(Boolean).map(m => m.id)
       .filter((id, i, a) => a.indexOf(id) === i);
 
   function datos(estadoDestino) {

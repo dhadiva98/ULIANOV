@@ -1,7 +1,7 @@
 // ===========================================================================
 //  USUARIOS Y EQUIPOS · AUDITORÍA · CONFIGURACIÓN
 // ===========================================================================
-import { sb, estado, esAdmin, fechaCorta, escapar, mensajeError, DISPOSITIVO } from './core.js';
+import { sb, estado, esAdmin, fechaCorta, escapar, monto, numero, mensajeError, DISPOSITIVO } from './core.js';
 import { $, abrirHoja, cerrarHoja, avisar, confirmar, esqueleto, vacio } from './ui.js';
 import * as D from './datos.js';
 
@@ -153,12 +153,71 @@ export async function vistaConfiguracion() {
       </div>
     </div>
 
+    ${esAdmin() ? `
+    <div class="panel">
+      <div class="panel__cabecera"><span class="eyebrow">Pago a las masajistas</span></div>
+      <div class="panel__cuerpo">
+        <p class="ayuda" style="margin:0 0 14px">Se calcula sobre el precio del tarifario.
+           Si el cliente tiene descuento, lo asume el spa: la masajista cobra igual.</p>
+        <div class="fila">
+          <label class="campo"><span>Porcentaje para la masajista</span>
+            <input type="number" id="cf-pct" step="0.5" min="0" max="100"></label>
+          <label class="campo"><span>Señorita de apoyo (monto fijo)</span>
+            <input type="number" id="cf-apoyo" step="0.5" min="0"></label>
+        </div>
+        <p class="ayuda" id="cf-pago-ej" style="margin:-6px 0 14px"></p>
+        <p class="error" id="cf-pago-err" hidden></p>
+        <button class="btn btn--principal btn--bloque" id="cf-pago-guardar">Guardar</button>
+        <p class="ayuda" style="margin:14px 0 0">Cambiarlo no toca ningún masaje ya registrado:
+           cada uno guardó el porcentaje con el que se calculó. Solo aplica de aquí en adelante.</p>
+      </div>
+    </div>` : ''}
+
     <div class="panel">
       <div class="panel__cabecera"><span class="eyebrow">Tu cuenta</span></div>
       <div class="panel__cuerpo">
         <button class="btn btn--neutro btn--bloque" id="cf-pin">Cambiar mi PIN</button>
       </div>
     </div>`;
+
+  if (esAdmin()) {
+    const cfg   = await D.configPagos(true);
+    const iPct  = v.querySelector('#cf-pct');
+    const iApo  = v.querySelector('#cf-apoyo');
+    const ej    = v.querySelector('#cf-pago-ej');
+    const err   = v.querySelector('#cf-pago-err');
+    iPct.value = cfg.porcentaje;
+    iApo.value = cfg.apoyo;
+
+    // Un ejemplo con números concretos: es la forma rápida de ver si el
+    // porcentaje que se está escribiendo es el que se quería.
+    const ejemplo = () => {
+      const pct = numero(iPct.value), apo = numero(iApo.value);
+      ej.textContent =
+        `En un masaje de S/ 200: una sola masajista cobra ${monto(200 * pct / 100)}; `
+      + `en 4 manos, ${monto(200 * pct / 100 / 2)} cada una; `
+      + `en Sorpresa, ${monto(200 * pct / 100)} la principal y ${monto(apo)} la de apoyo.`;
+    };
+    [iPct, iApo].forEach(i => i.addEventListener('input', ejemplo));
+    ejemplo();
+
+    v.querySelector('#cf-pago-guardar').onclick = async e => {
+      const pct = numero(iPct.value), apo = numero(iApo.value);
+      err.hidden = true;
+      if (!(pct > 0 && pct <= 100)) {
+        err.textContent = 'El porcentaje debe estar entre 1 y 100.'; err.hidden = false; return;
+      }
+      if (!(apo >= 0)) {
+        err.textContent = 'El monto de apoyo no puede ser negativo.'; err.hidden = false; return;
+      }
+      e.currentTarget.disabled = true;
+      try {
+        await D.guardarConfigPagos(pct, apo);
+        avisar('Guardado. Aplica a los masajes nuevos.', 'exito');
+      } catch (ex) { err.textContent = mensajeError(ex); err.hidden = false; }
+      e.currentTarget.disabled = false;
+    };
+  }
 
   v.querySelectorAll('[data-tema]').forEach(b => b.onclick = () => {
     aplicarTema(b.dataset.tema); vistaConfiguracion();
