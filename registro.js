@@ -6,7 +6,8 @@
 //  cobrar editable justo debajo.
 // ===========================================================================
 import { estado, hoy, horaAhora, hora12, sumarMinutos, monto, numero,
-         escapar, mensajeError, vibrar, esAdmin, pagoPrevisto } from './core.js';
+         escapar, mensajeError, vibrar, esAdmin, pagoPrevisto,
+         precioBasePago, pctDeModalidad } from './core.js';
 import { $, abrirHoja, cerrarHoja, avisar, confirmar, autocompletar } from './ui.js';
 import * as D from './datos.js';
 
@@ -262,7 +263,10 @@ export async function formularioServicio(reg, fecha, alGuardar) {
   //  pantalla y esa masajista cobra solo su mitad.
   // ------------------------------------------------------------------------
   let cfgPagos = { porcentaje: 40, apoyo: 25 };
+  let modalidades = [];
   D.configPagos().then(c => { cfgPagos = c; pintarPagos(); });
+  D.listasCatalogo().then(l => { modalidades = l.modalidades || []; pintarPagos(); })
+                    .catch(() => {});
 
   let firma = null;              // para repintar solo cuando de verdad cambia
   let extraCampos = 0;           // huecos que la administradora pidió a mano
@@ -351,8 +355,21 @@ export async function formularioServicio(reg, fecha, alGuardar) {
       pie.style.color = '';
       if (!esAdmin() || !servicio || !masajistas[i]) { pie.textContent = ''; return; }
 
-      const m = pagoPrevisto(servicio.precio_referencial, req, rep, i + 1, cfgPagos);
-      pie.textContent = m == null ? '' : `Cobra ${monto(m)}`;
+      // En holístico el pago sale del precio del Egypcio de esa duración,
+      // no del masaje que se hizo. Se dice de dónde salió para que el número
+      // no parezca un error cuando no coincide con lo que paga el cliente.
+      const base = precioBasePago(servicio, todos, modalidades);
+      if (base.falta) {
+        pie.style.color = 'var(--rojo)';
+        pie.textContent = `Falta cargar el precio de ${base.origen} en Servicios. `
+                        + 'Sin él no se puede calcular su pago.';
+        return;
+      }
+      const pct = pctDeModalidad(servicio.modalidad, modalidades, cfgPagos.porcentaje);
+      const m = pagoPrevisto(base.precio, req, rep, i + 1,
+                             { porcentaje: pct, apoyo: cfgPagos.apoyo });
+      pie.textContent = m == null ? ''
+        : `Cobra ${monto(m)}` + (base.origen ? ` · ${pct}% de ${base.origen}` : '');
     });
   }
 

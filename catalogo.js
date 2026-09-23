@@ -294,8 +294,40 @@ function editarServicio(s, recargar, opciones = null) {
 //  historial ya registrado: cada atención guardó su propia copia del nombre
 //  y del precio, y así debe quedarse.
 // ---------------------------------------------------------------------------
-function renombrar(tabla, campo, valorActual, recargar) {
+async function renombrar(tabla, campo, valorActual, recargar) {
   const queEs = tabla === 'masajes' ? 'el masaje' : 'la modalidad';
+
+  // Las modalidades pueden tener su propia regla de pago. Holístico es el
+  // caso: la señorita cobra la mitad, y siempre sobre el precio del Egypcio
+  // de esa duración, no sobre el masaje que se hizo.
+  let mod = null, masajes = [];
+  if (tabla === 'modalidades') {
+    try {
+      const l = await D.listasCatalogo();
+      mod = (l.modalidades || []).find(m => m.nombre === valorActual) || {};
+      masajes = (l.masajes || []).map(m => m.nombre);
+    } catch { mod = {}; }
+  }
+
+  const bloquePago = !mod ? '' : `
+    <div class="tarifa" style="margin:4px 0 18px">
+      <span class="eyebrow" style="display:block;margin-bottom:10px">Cómo se paga en esta modalidad</span>
+
+      <label class="campo"><span>Porcentaje para la masajista</span>
+        <input type="number" id="rn-pct" step="0.5" min="0" max="100"
+               placeholder="vacío = usar el general"
+               value="${mod.pago_porcentaje ?? ''}"></label>
+
+      <label class="campo"><span>¿Sobre el precio de qué masaje?</span>
+        <select id="rn-ref">
+          <option value="">El del masaje que se hizo</option>
+          ${masajes.map(m => `<option value="${escapar(m)}"
+            ${mod.pago_masaje_referencia === m ? 'selected' : ''}>
+            Siempre el de ${escapar(m)} (misma duración)</option>`).join('')}
+        </select></label>
+
+      <p class="ayuda" id="rn-pago-ej" style="margin:0"></p>
+    </div>`;
 
   const cuerpo = abrirHoja(`Renombrar ${queEs}`, `
     <label class="campo"><span>Nombre</span>
@@ -305,6 +337,8 @@ function renombrar(tabla, campo, valorActual, recargar) {
       Se corrige en toda la matriz de precios de una vez. Las atenciones ya
       registradas conservan el nombre que tenían: su historial no se toca.</p>
 
+    ${bloquePago}
+
     <p class="error" id="rn-error" hidden></p>
     <button class="btn btn--principal btn--bloque" id="rn-ok">Guardar</button>
     <button class="btn btn--peligro btn--bloque" id="rn-borrar" style="margin-top:10px">
@@ -313,13 +347,37 @@ function renombrar(tabla, campo, valorActual, recargar) {
   const err = cuerpo.querySelector('#rn-error');
   const fallo = m => { err.textContent = m; err.hidden = false; };
 
+  // Ejemplo con números mientras se escribe, para no configurar a ciegas.
+  if (mod) {
+    const ej = cuerpo.querySelector('#rn-pago-ej');
+    const verEjemplo = () => {
+      const pct = numero(cuerpo.querySelector('#rn-pct').value) || null;
+      const ref = cuerpo.querySelector('#rn-ref').value;
+      const p = pct ?? 40;
+      ej.textContent = ref
+        ? `Si el ${ref} de esta modalidad cuesta S/ 250 en 60', entonces TODOS `
+          + `los masajes de 60' en esta modalidad pagan S/ ${(250 * p / 100).toFixed(2)}, `
+          + `cueste lo que cueste el masaje que se hizo.`
+        : `Cada masaje paga el ${p}% de su propio precio.`;
+    };
+    ['#rn-pct', '#rn-ref'].forEach(s =>
+      cuerpo.querySelector(s).addEventListener('input', verEjemplo));
+    verEjemplo();
+  }
+
   cuerpo.querySelector('#rn-ok').onclick = async () => {
     const nuevo = cuerpo.querySelector('#rn-nombre').value.trim();
-    if (!nuevo)                return fallo('El nombre no puede quedar vacío.');
-    if (nuevo === valorActual) return cerrarHoja();
+    if (!nuevo) return fallo('El nombre no puede quedar vacío.');
     try {
-      await D.renombrarCatalogo(tabla, campo, valorActual, nuevo);
-      avisar('Nombre corregido en toda la matriz', 'exito');
+      if (mod) {
+        const pctTxt = cuerpo.querySelector('#rn-pct').value.trim();
+        await D.configPagoModalidad(valorActual,
+          pctTxt === '' ? null : numero(pctTxt),
+          cuerpo.querySelector('#rn-ref').value || null);
+      }
+      if (nuevo !== valorActual)
+        await D.renombrarCatalogo(tabla, campo, valorActual, nuevo);
+      avisar('Guardado', 'exito');
       cerrarHoja(); recargar();
     } catch (ex) {
       const m = mensajeError(ex);

@@ -182,6 +182,11 @@ export const resumenPagosDia = fecha =>
 export const renombrarCatalogo = (tabla, campo, viejo, nuevo) =>
   sb.from(tabla).update({ [campo]: nuevo }).eq(campo, viejo).then(ok);
 
+export const configPagoModalidad = (nombre, porcentaje, masajeReferencia) =>
+  sb.from('modalidades')
+    .update({ pago_porcentaje: porcentaje, pago_masaje_referencia: masajeReferencia })
+    .eq('nombre', nombre).then(ok);
+
 export const borrarDelCatalogo = (tabla, campo, valor) =>
   sb.from(tabla).delete().eq(campo, valor).then(ok);
 

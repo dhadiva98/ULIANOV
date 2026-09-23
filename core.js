@@ -152,6 +152,34 @@ export function pagoPrevisto(precio, requeridas, reparto, orden, cfg) {
   return orden <= 1 ? r2(pool - base * (n - 1)) : base;
 }
 
+// Precio sobre el que se calcula el pago. Espejo de precio_base_pago() del
+// servidor: en holístico la señorita cobra sobre el Egypcio de esa duración,
+// no sobre el masaje que se hizo.
+export function precioBasePago(servicio, todosLosServicios = [], modalidades = []) {
+  if (!servicio) return { precio: null, origen: null, falta: false };
+
+  const mod = modalidades.find(m => m.nombre === servicio.modalidad);
+  const ref = mod?.pago_masaje_referencia;
+
+  if (!ref || ref === servicio.masaje)
+    return { precio: Number(servicio.precio_referencial), origen: null, falta: false };
+
+  const base = todosLosServicios.find(s =>
+    s.masaje === ref && s.modalidad === servicio.modalidad &&
+    Number(s.duracion) === Number(servicio.duracion) && s.activo !== false);
+
+  const etiqueta = `${ref} ${servicio.modalidad} ${servicio.duracion}'`;
+  return base
+    ? { precio: Number(base.precio_referencial), origen: etiqueta, falta: false }
+    : { precio: null, origen: etiqueta, falta: true };
+}
+
+// El porcentaje que aplica: el propio de la modalidad si lo tiene.
+export function pctDeModalidad(nombreModalidad, modalidades = [], general = 40) {
+  const m = modalidades.find(x => x.nombre === nombreModalidad);
+  return m?.pago_porcentaje != null ? Number(m.pago_porcentaje) : general;
+}
+
 export function mensajeError(e) {
   const m = String(e?.message || e || '');
   if (/masajistas activas|no existe/i.test(m)) return m.replace(/^.*?:\s*/, '');
@@ -176,6 +204,10 @@ export function mensajeError(e) {
     return 'El efectivo recibido no alcanza para cubrir el total.';
   if (/violates check constraint.*atendido/i.test(m))
     return 'Para marcarlo como atendido faltan datos obligatorios.';
+  // El servidor ya manda estos dos en castellano y bien explicados: se dejan
+  // pasar tal cual, solo limpiando el prefijo técnico que antepone Postgres.
+  if (/hace falta el precio de|precio de referencia para pagar/i.test(m))
+    return m.replace(/^.*?:\s*/, '');
   if (/violates not-null|null value in column/i.test(m))
     return 'Falta rellenar un campo obligatorio.';
   if (/Failed to fetch|NetworkError/i.test(m)) return 'Sin conexión. Revisa tu internet e inténtalo de nuevo.';
