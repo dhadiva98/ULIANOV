@@ -78,6 +78,7 @@ export async function vistaCaja(fecha = hoy()) {
           : '<button class="btn btn--principal" id="k-cerrar">Finalizar día</button>'}
       </div>
       <p class="eyebrow" style="margin:-8px 0 16px">${escapar(fechaLarga(fecha))}${r.cerrado ? ' · Día cerrado' : ''}</p>
+      <div id="k-pagos"></div>
 
       <div class="panel">
         <div class="panel__cabecera" style="display:flex;justify-content:space-between;align-items:center;gap:12px">
@@ -106,6 +107,40 @@ export async function vistaCaja(fecha = hoy()) {
       </div>
 
       ${c ? panelCierre(c, fecha) : ''}`;
+
+    // Recordatorio de lo que falta pagar a las señoritas. Es dinero aparte
+    // del de la caja, por eso va como aviso y no dentro del cuadre.
+    (async () => {
+      const caja = $('#k-pagos');
+      if (!caja) return;
+      try {
+        const rp = await D.resumenPagosDia(fecha);
+        const pend = numero(rp?.pendiente);
+        const npend = Number(rp?.srtas_pendientes) || 0;
+        const dif = Number(rp?.con_diferencia) || 0;
+        if (!npend && !dif) { caja.remove(); return; }
+
+        caja.className = 'panel';
+        caja.innerHTML = `
+          <div class="panel__cuerpo" style="display:flex;justify-content:space-between;
+               align-items:center;gap:14px;flex-wrap:wrap">
+            <div>
+              <span class="eyebrow" style="display:block;margin-bottom:4px">Pago a las masajistas</span>
+              <strong>${npend
+                ? `Faltan ${monto(pend)} por entregar a ${npend} ${npend === 1 ? 'señorita' : 'señoritas'}`
+                : 'Hay pagos con diferencia por revisar'}</strong>
+              ${dif ? `<div class="ayuda" style="color:var(--rojo);margin-top:4px">
+                         ${dif} con diferencia: se corrigió un masaje después de pagarle.</div>` : ''}
+            </div>
+            <button class="btn btn--neutro" id="k-ir-pagos">Ver pagos</button>
+          </div>`;
+        // Se pulsa el botón del menú en vez de importar el router: importar
+        // app.js desde aquí crearía una dependencia circular, y ningún otro
+        // módulo del sistema lo hace.
+        caja.querySelector('#k-ir-pagos').onclick = () =>
+          document.querySelector('#menu [data-vista="pagos"]')?.click();
+      } catch (_) { caja.remove(); }   // recepción no ve esto
+    })();
 
     $('#k-fecha').onchange = e => vistaCaja(e.target.value);
     $('#k-fondo').onclick = () => anotarFondo(fecha, r.fondo_inicial ?? r.caja_fija_anterior);

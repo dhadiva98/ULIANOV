@@ -12,6 +12,7 @@ import { vistaMasajistas } from './masajistas.js';
 import { vistaAsistencia } from './asistencia.js';
 import { vistaResumen, vistaCaja } from './caja.js';
 import { vistaReportes } from './reportes.js';
+import { vistaPagos } from './pagos.js';
 import { vistaUsuarios, vistaAuditoria, vistaConfiguracion, aplicarTema } from './admin.js';
 import * as D from './datos.js';
 
@@ -29,6 +30,7 @@ const VISTAS = [
   { id: 'resumen',     titulo: 'Resumen',        ver: vistaResumen,     admin: true },
   { id: 'caja',        titulo: 'Caja',           ver: vistaCaja,        admin: true },
   { id: 'reportes',    titulo: 'Reportes',       ver: vistaReportes,    admin: true },
+  { id: 'pagos',       titulo: 'Pagos',          ver: vistaPagos,       admin: true },
   { separador: true, admin: true },
   { id: 'servicios',   titulo: 'Servicios',      ver: vistaServicios,   admin: true },
   { id: 'masajistas',  titulo: 'Masajistas',     ver: vistaMasajistas,  admin: true },
@@ -100,8 +102,9 @@ const TABLAS = ['registros_servicios', 'registro_masajistas', 'clientes', 'masaj
 
 // Qué vistas dependen de qué tabla, para no repintar de más.
 const AFECTA = {
-  registros_servicios: ['agenda', 'historial', 'resumen', 'caja', 'reportes', 'clientes'],
-  registro_masajistas: ['agenda', 'historial', 'resumen', 'reportes'],
+  registros_servicios: ['agenda', 'historial', 'resumen', 'caja', 'reportes', 'clientes', 'pagos'],
+  registro_masajistas: ['agenda', 'historial', 'resumen', 'reportes', 'pagos'],
+  pagos_diarios:       ['pagos', 'caja'],
   clientes:            ['clientes', 'agenda', 'historial'],
   masajistas:          ['masajistas', 'asistencia'],
   servicios:           ['tarifario', 'servicios'],
@@ -115,7 +118,7 @@ const AFECTA = {
   perfiles:            ['usuarios'],
   dispositivos:        ['usuarios'],
   auditoria:           ['auditoria'],
-  configuracion:       ['ajustes']
+  configuracion:       ['ajustes', 'servicios', 'registro']
 };
 
 let repintarPendiente = null;

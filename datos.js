@@ -160,6 +160,22 @@ export const reportePagos = (desde, hasta) =>
 export const pagosDeRegistro = id =>
   sb.rpc('pagos_de_registro', { p_id: id }).then(ok);
 
+// --- Pago diario -----------------------------------------------------------
+// El monto lo recalcula el servidor al marcar: nunca se le manda desde aquí,
+// para que no pueda registrarse un pago por una cifra distinta a la real.
+export const pagosDelDia = fecha =>
+  sb.rpc('pagos_del_dia', { p_fecha: fecha }).then(ok);
+
+export const marcarPago = (masajistaId, formaPago, fecha, notas = null) =>
+  sb.rpc('marcar_pago', { p_masajista_id: masajistaId, p_forma_pago: formaPago,
+                          p_fecha: fecha, p_notas: notas }).then(ok);
+
+export const deshacerPago = (masajistaId, fecha) =>
+  sb.rpc('deshacer_pago', { p_masajista_id: masajistaId, p_fecha: fecha }).then(ok);
+
+export const resumenPagosDia = fecha =>
+  sb.rpc('resumen_pagos_dia', { p_fecha: fecha }).then(ok);
+
 // Renombrar propaga solo: las claves foráneas tienen ON UPDATE CASCADE.
 // Los registros ya guardados NO cambian, porque llevan su propia copia
 // del nombre y del precio del momento en que se hicieron.
