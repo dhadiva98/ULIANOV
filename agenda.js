@@ -4,7 +4,7 @@
 //  reservas pendientes y servicios ya realizados.
 // ===========================================================================
 import { estado, esAdmin, hoy, fechaCorta, fechaLarga, hora12, sumarMinutos,
-         monto, escapar, mensajeError, sumarDias } from './core.js';
+         monto, escapar, mensajeError, sumarDias, insigniaNivel, nombreNivel } from './core.js';
 import { $, abrirHoja, cerrarHoja, avisar, confirmar, esqueleto, vacio } from './ui.js';
 import * as D from './datos.js';
 import { formularioServicio, reservaRapida } from './registro.js';
@@ -117,7 +117,7 @@ function fila(conFecha, r) {
     <td style="width:44px">${r.estado === 'reserva'
       ? `<input type="checkbox" class="marca-reserva" data-marca="${r.id}"
            style="width:22px;height:22px;accent-color:var(--rojo)" aria-label="Seleccionar reserva">`
-      : (r.cliente?.vip ? '<span class="estrella" title="VIP">★</span>' : '')}</td>
+      : insigniaNivel(r.cliente?.nivel)}</td>
     <td class="destacado" data-etiqueta="Hora">${oFalta(hora12(r.hora_ingreso?.slice(0,5)))}</td>
     ${conFecha ? `<td data-etiqueta="Fecha">${fechaCorta(r.fecha)}</td>` : ''}
     <td data-etiqueta="Cliente">${oFalta(nombreCliente(r))}</td>
@@ -182,7 +182,9 @@ export function detalle(r, recargar) {
       ${s?.duracion && r.hora_ingreso
         ? l('Termina ~', hora12(sumarMinutos(r.hora_ingreso.slice(0,5), s.duracion))) : ''}
       ${l('Estado', r.anulado ? 'Anulado' : r.estado === 'atendido' ? 'Atendido' : 'Reserva')}
-      ${l('Cliente', (nombreCliente(r) || '—') + (r.cliente?.vip ? '  ★ VIP' : ''))}
+      ${l('Cliente', (nombreCliente(r) || '—')
+            + (r.cliente?.nivel && r.cliente.nivel !== 'ninguno'
+               ? '  · ' + nombreNivel(r.cliente.nivel) : ''))}
       ${l('Servicio', nombreServicio(r) || '—')}
       ${l('Masajista', nombreMasajistas(r) || 'Sin asignar')}
     </div>

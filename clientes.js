@@ -4,7 +4,8 @@
 //  Los registros se relacionan por cliente_id, nunca por nombre: por eso
 //  corregir el nombre actualiza automáticamente todo el historial.
 // ===========================================================================
-import { esAdmin, fechaCorta, monto, escapar, mensajeError, esperar } from './core.js';
+import { esAdmin, fechaCorta, monto, escapar, mensajeError, esperar,
+         insigniaNivel, nombreNivel } from './core.js';
 import { $, abrirHoja, cerrarHoja, avisar, confirmar, esqueleto, vacio, autocompletar } from './ui.js';
 import * as D from './datos.js';
 
@@ -15,6 +16,13 @@ export async function vistaClientes() {
       <input type="search" id="c-buscar" placeholder="Buscar cliente…"
              style="flex:1;min-width:200px;padding:13px 14px;border-radius:10px;font-size:16px;
                     border:1.5px solid var(--borde-fuerte);background:var(--superficie);color:inherit">
+      <select id="c-nivel" style="padding:12px 14px;border-radius:10px;font-size:15px;
+              border:1.5px solid var(--borde-fuerte);background:var(--superficie);color:inherit">
+        <option value="">Todos los niveles</option>
+        <option value="black">Solo VIP Black</option>
+        <option value="clasico">Solo VIP Clásico</option>
+        <option value="ninguno">Sin nivel</option>
+      </select>
       ${esAdmin() ? '<button class="btn btn--neutro" id="c-duplicados">Posibles duplicados</button>' : ''}
     </div>
     <div id="c-lista">${esqueleto(6)}</div>`;
@@ -22,19 +30,27 @@ export async function vistaClientes() {
   const pintar = async (texto = '') => {
     const caja = $('#c-lista');
     try {
-      const lista = await D.clientes(texto);
+      const nivelPedido = document.querySelector('#c-nivel')?.value || '';
+      const todos = await D.clientes(texto);
+      const lista = nivelPedido
+        ? todos.filter(c => (c.nivel || 'ninguno') === nivelPedido)
+        : todos;
       caja.innerHTML = lista.length ? `
         <div class="panel"><div class="tabla-envoltura"><table class="a-tarjetas">
           <thead><tr><th></th><th>Nombre</th><th>Teléfono</th>
-            <th class="num">Visitas</th><th>Última visita</th></tr></thead>
+            <th class="num">Últimos 30 días</th><th class="num">Visitas</th>
+            <th>Última visita</th></tr></thead>
           <tbody>${lista.map(c => `<tr data-clic data-id="${c.id}">
-            <td style="width:30px">${c.vip ? '<span class="estrella">★</span>' : ''}</td>
+            <td style="width:74px">${insigniaNivel(c.nivel)}</td>
             <td class="destacado">${escapar(c.nombre || 'Sin nombre')}</td>
             <td data-etiqueta="Teléfono">${c.telefono ? escapar(c.telefono) : '<span class="vacio">—</span>'}</td>
+            <td class="num" data-etiqueta="Últimos 30 días">${c.visitas_30d ?? 0}</td>
             <td class="num" data-etiqueta="Visitas">${c.visitas}</td>
             <td data-etiqueta="Última">${c.ultima_visita ? fechaCorta(c.ultima_visita) : '<span class="vacio">—</span>'}</td>
           </tr>`).join('')}</tbody></table></div></div>`
-        : vacio(texto ? 'Ningún cliente con ese nombre.' : 'Todavía no hay clientes registrados.');
+        : vacio(nivelPedido ? `Ningún cliente en ${nombreNivel(nivelPedido).toLowerCase()}.`
+              : texto ? 'Ningún cliente con ese nombre.'
+              : 'Todavía no hay clientes registrados.');
 
       caja.querySelectorAll('tr[data-clic]').forEach(tr => tr.onclick = () =>
         ficha(lista.find(c => c.id === tr.dataset.id)));
@@ -42,6 +58,7 @@ export async function vistaClientes() {
   };
 
   $('#c-buscar').oninput = esperar(e => pintar(e.target.value.trim()), 250);
+  $('#c-nivel').onchange  = () => pintar($('#c-buscar').value.trim());
   const dup = $('#c-duplicados');
   if (dup) dup.onclick = panelDuplicados;
   pintar();
@@ -54,8 +71,16 @@ async function ficha(c) {
       <div class="tarifa__linea"><span>Teléfono</span><span>${c.telefono ? escapar(c.telefono) : '—'}</span></div>
       <div class="tarifa__linea"><span>Visitas</span><span>${c.visitas}</span></div>
       <div class="tarifa__linea"><span>Última visita</span><span>${c.ultima_visita ? fechaCorta(c.ultima_visita) : '—'}</span></div>
-      <div class="tarifa__linea"><span>VIP</span><span>${c.vip ? 'Sí ★' : 'No'}</span></div>
+      <div class="tarifa__linea"><span>Visitas en los últimos 30 días</span>
+        <span>${c.visitas_30d ?? 0}</span></div>
+      <div class="tarifa__linea"><span>Nivel</span>
+        <span>${insigniaNivel(c.nivel, { texto: true }) || 'Sin nivel'}</span></div>
     </div>
+    <p class="ayuda" style="margin:-10px 0 18px">${
+      c.vip ? 'Tiene la estrella puesta a mano, así que es VIP Black siempre, vengan las visitas que vengan.'
+      : c.nivel === 'black'   ? 'Se gana solo con 4 o más visitas en 30 días. Si baja el ritmo, se le respeta el nivel 30 días más.'
+      : c.nivel === 'clasico' ? 'Se gana solo con 2 o 3 visitas en 30 días. Con una más pasa a VIP Black.'
+      : 'Con 2 visitas en 30 días pasa solo a VIP Clásico.'}</p>
     ${c.observaciones ? `<div class="panel" style="margin-bottom:18px"><div class="panel__cuerpo">
       <span class="eyebrow">Observaciones</span><p style="margin:8px 0 0">${escapar(c.observaciones)}</p>
     </div></div>` : ''}
@@ -100,7 +125,9 @@ function editar(c) {
     <label class="campo"><span>Teléfono</span>
       <input type="tel" id="ce-tel" value="${escapar(c.telefono || '')}"></label>
     <label class="casilla"><input type="checkbox" id="ce-vip" ${c.vip ? 'checked' : ''}>
-      <span>Cliente VIP (solo una marca visual, no cambia precios)</span></label>
+      <span>VIP Black fijo — se queda en Black aunque deje de venir.
+            Para familia o gente de la casa. Sin esto, el nivel lo pone
+            el sistema solo, según sus visitas.</span></label>
     <label class="campo"><span>Observaciones</span>
       <textarea id="ce-obs">${escapar(c.observaciones || '')}</textarea></label>
     <button class="btn btn--principal btn--bloque" id="ce-guardar">Guardar cambios</button>`);

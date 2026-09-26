@@ -288,6 +288,21 @@ tbody tr.entrando { animation: entrar .3s var(--curva); }
 .insignia--pago      { background: var(--superficie-2); color: var(--tinta-media); }
 .estrella { color: var(--rojo); font-size: 15px; }
 
+/* Niveles VIP.
+   Clásico: la estrella roja de siempre.
+   Black: la misma estrella sobre una pastilla de tinta. Se usa var(--tinta)
+   y var(--lienzo), que se invierten solos con el tema: oscura sobre claro
+   de día, clara sobre oscuro de noche. Un negro fijo desaparecería en
+   modo oscuro. */
+.nivel { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.nivel--clasico { color: var(--rojo); font-size: 15px; }
+.nivel--black {
+  background: var(--tinta); color: var(--lienzo);
+  border-radius: 999px; padding: 2px 8px;
+  font-size: 11px; font-weight: 600; letter-spacing: .04em;
+}
+.nivel--black .ast { font-size: 12px; }
+
 .mensaje-vacio { text-align: center; padding: 56px 24px; color: var(--tinta-media); }
 .mensaje-vacio .marca { width: 54px; height: 54px; margin: 0 auto 16px; opacity: .3; }
 .mensaje-vacio p { margin: 0 0 18px; }

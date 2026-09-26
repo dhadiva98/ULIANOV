@@ -7,7 +7,7 @@
 // ===========================================================================
 import { estado, hoy, horaAhora, hora12, sumarMinutos, monto, numero,
          escapar, mensajeError, vibrar, esAdmin, pagoPrevisto,
-         precioBasePago, pctDeModalidad } from './core.js';
+         precioBasePago, pctDeModalidad, nombreNivel } from './core.js';
 import { $, abrirHoja, cerrarHoja, avisar, confirmar, autocompletar } from './ui.js';
 import * as D from './datos.js';
 
@@ -424,8 +424,12 @@ export async function formularioServicio(reg, fecha, alGuardar) {
   autocompletar({
     contenedor: el('#f-cliente'), etiqueta: 'Cliente', valorInicial: cliente,
     buscar: D.buscarClientes,
-    pintar: c => ({ titulo: (c.vip ? '★ ' : '') + (c.nombre || 'Sin nombre'),
-                    nota: c.visitas ? `${c.visitas} visitas` : 'Nuevo' }),
+    pintar: c => ({
+      titulo: (c.nivel === 'black' ? '★ ' : c.nivel === 'clasico' ? '★ ' : '')
+              + (c.nombre || 'Sin nombre'),
+      // El nivel se ve aquí mismo: es el momento en que hace falta saberlo.
+      nota: [c.nivel && c.nivel !== 'ninguno' ? nombreNivel(c.nivel) : null,
+             c.visitas ? `${c.visitas} visitas` : 'Nuevo'].filter(Boolean).join(' · ') }),
     alElegir: c => cliente = c,
     permitirCrear: crearClienteConAviso,
     textoCrear: 'Crear cliente'

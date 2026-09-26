@@ -174,6 +174,10 @@ iniciarAcceso(() => {
   suscribir();
   estado.fecha = hoy();
   ir('agenda');
+  // Los niveles VIP bajan por el paso del tiempo, y un cliente que deja de
+  // venir no dispara nada. Este repaso los pone al día una vez por jornada:
+  // si ya se hizo hoy, el servidor no hace trabajo de más.
+  D.actualizarNiveles().catch(() => {});
 }).catch(e => {
   document.body.innerHTML =
     `<div class="pantalla-plena"><p class="error">${mensajeError(e)}</p></div>`;

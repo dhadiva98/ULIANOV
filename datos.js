@@ -17,7 +17,7 @@ const REGISTRO = `
   servicio_id, servicio_nombre_snapshot, cliente_id, cliente_texto, usuario_id,
   servicio:servicios ( id, masaje, modalidad, duracion, nombre_completo,
                        precio_referencial, terapeutas_requeridas, pago_reparto ),
-  cliente:clientes ( id, nombre, telefono, vip, visitas, ultima_visita ),
+  cliente:clientes ( id, nombre, telefono, vip, visitas, ultima_visita, nivel, visitas_30d ),
   masajistas:registro_masajistas (
     orden, masajista_id, masajista_nombre_snapshot,
     masajista:masajistas ( id, nombre, apellido, eliminada ) )`;
@@ -181,6 +181,12 @@ export const resumenPagosDia = fecha =>
 // del nombre y del precio del momento en que se hicieron.
 export const renombrarCatalogo = (tabla, campo, viejo, nuevo) =>
   sb.from(tabla).update({ [campo]: nuevo }).eq(campo, viejo).then(ok);
+
+// Repaso diario de niveles. Un cliente que deja de venir no dispara ningún
+// trigger, así que su nivel se quedaría congelado: esto lo pone al día.
+// Por dentro comprueba si ya se hizo hoy, así que llamarla de más no cuesta.
+export const actualizarNiveles = () =>
+  sb.rpc('actualizar_niveles').then(ok).catch(() => 0);
 
 export const configPagoModalidad = (nombre, porcentaje, masajeReferencia) =>
   sb.from('modalidades')

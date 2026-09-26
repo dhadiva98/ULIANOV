@@ -180,6 +180,19 @@ export function pctDeModalidad(nombreModalidad, modalidades = [], general = 40) 
   return m?.pago_porcentaje != null ? Number(m.pago_porcentaje) : general;
 }
 
+// El distintivo del nivel, en un solo sitio para que las cinco pantallas
+// que lo muestran no se desincronicen nunca.
+export function insigniaNivel(nivel, { texto = false } = {}) {
+  if (nivel === 'black')
+    return `<span class="nivel nivel--black" title="VIP Black"><span class="ast">★</span>BLACK</span>`;
+  if (nivel === 'clasico')
+    return `<span class="nivel nivel--clasico" title="VIP Clásico">★${texto ? ' VIP Clásico' : ''}</span>`;
+  return '';
+}
+
+export const nombreNivel = n =>
+  n === 'black' ? 'VIP Black' : n === 'clasico' ? 'VIP Clásico' : 'Sin nivel';
+
 export function mensajeError(e) {
   const m = String(e?.message || e || '');
   if (/masajistas activas|no existe/i.test(m)) return m.replace(/^.*?:\s*/, '');
