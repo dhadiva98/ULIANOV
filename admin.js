@@ -173,6 +173,25 @@ export async function vistaConfiguracion() {
       </div>
     </div>` : ''}
 
+    ${esAdmin() ? `
+    <div class="panel">
+      <div class="panel__cabecera"><span class="eyebrow">Descuentos por nivel VIP</span></div>
+      <div class="panel__cuerpo">
+        <p class="ayuda" style="margin:0 0 14px">Se aplica solo al elegir el cliente, y siempre
+           se puede cambiar el precio a mano. Una fila en cero significa sin descuento:
+           para dar descuento en otras duraciones, escribe los montos ahí.</p>
+        <div class="tabla-envoltura"><table>
+          <thead><tr><th>Cuándo aplica</th>
+            <th class="num">hasta 139</th><th class="num">140 a 204</th>
+            <th class="num">205 a 304</th><th class="num">305 o más</th></tr></thead>
+          <tbody id="cf-dv"><tr><td colspan="5" class="ayuda">Cargando…</td></tr></tbody>
+        </table></div>
+        <p class="error" id="cf-dv-err" hidden></p>
+        <button class="btn btn--principal btn--bloque" id="cf-dv-guardar"
+                style="margin-top:14px">Guardar descuentos</button>
+      </div>
+    </div>` : ''}
+
     <div class="panel">
       <div class="panel__cabecera"><span class="eyebrow">Tu cuenta</span></div>
       <div class="panel__cuerpo">
@@ -200,6 +219,45 @@ export async function vistaConfiguracion() {
     };
     [iPct, iApo].forEach(i => i.addEventListener('input', ejemplo));
     ejemplo();
+
+    // --- Descuentos por nivel ---------------------------------------------
+    const { reglas } = await D.reglasDescuentoVip(true);
+    const cuerpoDv = v.querySelector('#cf-dv');
+    const errDv    = v.querySelector('#cf-dv-err');
+
+    const etiqueta = r =>
+      (r.nivel === 'black' ? 'VIP Black' : 'VIP Clásico')
+      + ' · ' + (r.duracion ? r.duracion + ' min' : 'otras duraciones')
+      + (r.modalidad ? ' · ' + r.modalidad : '');
+
+    const orden = r => (r.nivel === 'black' ? 0 : 1) * 10
+                     + (r.duracion ? 0 : 1) * 2 + (r.modalidad ? 1 : 0);
+    reglas.sort((a, b) => orden(a) - orden(b));
+
+    cuerpoDv.innerHTML = reglas.map(r => `
+      <tr data-regla="${r.id}">
+        <td>${escapar(etiqueta(r))}</td>
+        ${[1,2,3,4].map(i => `<td class="num"><input type="number" step="0.5" min="0"
+           data-t="${i}" value="${r['tramo'+i]}"
+           style="width:74px;padding:8px;border-radius:8px;text-align:right;
+                  border:1.5px solid var(--borde-fuerte);background:var(--superficie);
+                  color:inherit;font-size:15px"></td>`).join('')}
+      </tr>`).join('');
+
+    v.querySelector('#cf-dv-guardar').onclick = async e => {
+      errDv.hidden = true;
+      e.currentTarget.disabled = true;
+      try {
+        for (const fila of cuerpoDv.querySelectorAll('tr[data-regla]')) {
+          const m = [1,2,3,4].map(i =>
+            numero(fila.querySelector(`[data-t="${i}"]`).value));
+          if (m.some(x => !(x >= 0))) throw new Error('Hay un descuento inválido.');
+          await D.guardarDescuentoVip(Number(fila.dataset.regla), ...m);
+        }
+        avisar('Descuentos guardados. Aplican a los registros nuevos.', 'exito');
+      } catch (ex) { errDv.textContent = mensajeError(ex); errDv.hidden = false; }
+      e.currentTarget.disabled = false;
+    };
 
     v.querySelector('#cf-pago-guardar').onclick = async e => {
       const pct = numero(iPct.value), apo = numero(iApo.value);

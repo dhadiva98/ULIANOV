@@ -185,6 +185,33 @@ export const renombrarCatalogo = (tabla, campo, viejo, nuevo) =>
 // Repaso diario de niveles. Un cliente que deja de venir no dispara ningún
 // trigger, así que su nivel se quedaría congelado: esto lo pone al día.
 // Por dentro comprueba si ya se hizo hoy, así que llamarla de más no cuesta.
+// Reglas de descuento por nivel. Se leen una vez por sesión: cambian poco y
+// hacen falta en cada tecla del formulario.
+let _reglasVip = null;
+export async function reglasDescuentoVip(recargar = false) {
+  if (_reglasVip && !recargar) return _reglasVip;
+  try {
+    const [reglas, cfg] = await Promise.all([
+      sb.from('descuentos_vip').select('*').then(ok),
+      sb.from('configuracion').select('clave, valor')
+        .in('clave', ['vip_tramo1_hasta','vip_tramo2_hasta','vip_tramo3_hasta']).then(ok)
+    ]);
+    const v = c => Number(cfg.find(f => f.clave === c)?.valor);
+    _reglasVip = { reglas, tramos: {
+      t1: v('vip_tramo1_hasta') || 139,
+      t2: v('vip_tramo2_hasta') || 204,
+      t3: v('vip_tramo3_hasta') || 304 } };
+  } catch {
+    _reglasVip = { reglas: [], tramos: { t1: 139, t2: 204, t3: 304 } };
+  }
+  return _reglasVip;
+}
+
+export const guardarDescuentoVip = (id, t1, t2, t3, t4) =>
+  sb.rpc('guardar_descuento_vip',
+         { p_id: id, p_t1: t1, p_t2: t2, p_t3: t3, p_t4: t4 })
+    .then(ok).then(r => { _reglasVip = null; return r; });
+
 export const actualizarNiveles = () =>
   sb.rpc('actualizar_niveles').then(ok).catch(() => 0);
 

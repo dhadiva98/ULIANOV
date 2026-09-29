@@ -193,6 +193,30 @@ export function insigniaNivel(nivel, { texto = false } = {}) {
 export const nombreNivel = n =>
   n === 'black' ? 'VIP Black' : n === 'clasico' ? 'VIP Clásico' : 'Sin nivel';
 
+// Descuento por nivel VIP. Espejo de descuento_vip() del servidor; aquí solo
+// sirve para precargar el precio mientras se llena el formulario. El número
+// que queda guardado lo calcula el servidor.
+export function descuentoVip(nivel, precio, duracion, modalidad, reglas = [], tramos = {}) {
+  const p = Number(precio);
+  if (!nivel || nivel === 'ninguno' || !(p > 0)) return { monto: 0, regla: null };
+
+  // Gana la regla más específica: la que coincide en duración y modalidad.
+  const candidatas = reglas.filter(r =>
+    r.nivel === nivel &&
+    (r.duracion == null  || Number(r.duracion) === Number(duracion)) &&
+    (r.modalidad == null || r.modalidad === modalidad));
+  if (!candidatas.length) return { monto: 0, regla: null };
+
+  const peso = r => (r.duracion != null ? 1 : 0) + (r.modalidad != null ? 1 : 0);
+  candidatas.sort((a, b) => peso(b) - peso(a)
+                         || (b.modalidad != null) - (a.modalidad != null));
+  const r = candidatas[0];
+
+  const t1 = Number(tramos.t1 ?? 139), t2 = Number(tramos.t2 ?? 204), t3 = Number(tramos.t3 ?? 304);
+  const m = p <= t1 ? r.tramo1 : p <= t2 ? r.tramo2 : p <= t3 ? r.tramo3 : r.tramo4;
+  return { monto: Math.min(Number(m) || 0, p), regla: r.nota || null };
+}
+
 export function mensajeError(e) {
   const m = String(e?.message || e || '');
   if (/masajistas activas|no existe/i.test(m)) return m.replace(/^.*?:\s*/, '');

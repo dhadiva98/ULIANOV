@@ -7,7 +7,7 @@
 // ===========================================================================
 import { estado, hoy, horaAhora, hora12, sumarMinutos, monto, numero,
          escapar, mensajeError, vibrar, esAdmin, pagoPrevisto,
-         precioBasePago, pctDeModalidad, nombreNivel } from './core.js';
+         precioBasePago, pctDeModalidad, nombreNivel, descuentoVip } from './core.js';
 import { $, abrirHoja, cerrarHoja, avisar, confirmar, autocompletar } from './ui.js';
 import * as D from './datos.js';
 
@@ -136,6 +136,13 @@ export async function formularioServicio(reg, fecha, alGuardar) {
                 || (reg?.cliente_texto ? { id: null, nombre: reg.cliente_texto, __texto: true } : null);
   let todos     = [];
 
+  // Descuento por nivel VIP. Va declarado AQUÍ, con el resto del estado, y no
+  // más abajo: al abrir un registro ya guardado, la tarifa se pinta durante
+  // esta misma inicialización y estas variables tienen que existir ya.
+  let reglasVip = { reglas: [], tramos: {} };
+  let dctoVip = 0, reglaVip = null, precioTocado = !!reg?.precio_cobrado;
+  D.reglasDescuentoVip().then(r => { reglasVip = r; recalcularVip(); }).catch(() => {});
+
   const el = s => cuerpo.querySelector(s);
 
   // === 1. Masaje (autocompletado) ==========================================
@@ -194,9 +201,28 @@ export async function formularioServicio(reg, fecha, alGuardar) {
       servicio = propios.find(s => s.id === b.dataset.id);
       caja.querySelectorAll('.duracion').forEach(x => x.classList.toggle('elegida', x === b));
       vibrar(10);
+      recalcularVip();      // el descuento depende del masaje y su duración
       pintarTarifa();
       pintarMasajistas();   // el servicio manda cuántas srtas hacen falta
     });
+  }
+
+  // Recalcula el descuento del nivel. Se llama cuando cambia el masaje o el
+  // cliente, que son las dos cosas que lo determinan.
+  function recalcularVip() {
+    const antes = dctoVip;
+    if (!servicio || !cliente?.nivel) { dctoVip = 0; reglaVip = null; }
+    else {
+      const r = descuentoVip(cliente.nivel, servicio.precio_referencial,
+                             servicio.duracion, servicio.modalidad,
+                             reglasVip.reglas, reglasVip.tramos);
+      dctoVip = r.monto; reglaVip = r.regla;
+    }
+    if (!el('#f-tarifa')) return;
+    // Si aún no se escribió un precio a mano, se repinta para que el campo
+    // tome el nuevo sugerido. Si ya se escribió, no se pisa lo tecleado.
+    if (!precioTocado) pintarTarifa();
+    else if (antes !== dctoVip) calcular();
   }
 
   // === 3. Tarifa referencial y precio a cobrar ============================
@@ -206,20 +232,27 @@ export async function formularioServicio(reg, fecha, alGuardar) {
     const ref = numero(servicio.precio_referencial);
     const actual = el('#f-cobrado')?.value;
 
+    const sugerido = Math.max(0, ref - dctoVip);
+
     caja.innerHTML = `
       <div class="tarifa">
         <div class="tarifa__linea"><span>Tarifa referencial</span><span>${monto(ref)}</span></div>
+        <div class="tarifa__linea tarifa__linea--desc ${dctoVip > 0 ? '' : 'oculto'}" id="f-linea-vip">
+          <span id="f-vip-etq">${escapar(reglaVip || 'Descuento VIP')}</span>
+          <span id="f-vip-val">−${monto(dctoVip)}</span></div>
         <div class="tarifa__linea tarifa__linea--desc oculto" id="f-linea-desc">
           <span id="f-desc-etq">Descuento</span><span id="f-desc-val"></span></div>
         <div class="tarifa__linea tarifa__linea--total"><span>Precio cobrado</span>
-          <span id="f-cobrado-eco">${monto(ref)}</span></div>
+          <span id="f-cobrado-eco">${monto(sugerido)}</span></div>
       </div>
       <label class="campo campo--monto"><span>Precio a cobrar</span>
         <input type="number" id="f-cobrado" inputmode="decimal" step="0.5" min="0"
-               value="${actual ?? (reg?.precio_cobrado ?? ref)}"></label>
-      <p class="ayuda" style="margin:-10px 0 18px">La tarifa es solo una referencia. Puedes cobrar más o menos.</p>`;
+               value="${actual ?? (reg?.precio_cobrado ?? sugerido)}"></label>
+      <p class="ayuda" style="margin:-10px 0 18px">${dctoVip > 0
+        ? 'El precio ya viene con el descuento de su nivel puesto. Puedes cambiarlo si hace falta.'
+        : 'La tarifa es solo una referencia. Puedes cobrar más o menos.'}</p>`;
 
-    el('#f-cobrado').addEventListener('input', calcular);
+    el('#f-cobrado').addEventListener('input', () => { precioTocado = true; calcular(); });
     calcular();
     actualizarTermina();
   }
@@ -235,8 +268,13 @@ export async function formularioServicio(reg, fecha, alGuardar) {
     const linea = el('#f-linea-desc');
 
     el('#f-cobrado-eco').textContent = monto(cob);
-    if (desc > 0)      { linea.classList.remove('oculto'); el('#f-desc-etq').textContent = 'Descuento';
-                         el('#f-desc-val').textContent = '−' + monto(desc); }
+
+    // El descuento del nivel tiene su propia línea; esta muestra solo lo que
+    // se rebajó POR ENCIMA de él, para que se vea qué es automático y qué no.
+    const extra = Math.max(0, desc - dctoVip);
+    if (extra > 0)     { linea.classList.remove('oculto');
+                         el('#f-desc-etq').textContent = dctoVip > 0 ? 'Rebaja adicional' : 'Descuento';
+                         el('#f-desc-val').textContent = '−' + monto(extra); }
     else if (aju > 0)  { linea.classList.remove('oculto'); el('#f-desc-etq').textContent = 'Ajuste';
                          el('#f-desc-val').textContent = '+' + monto(aju); }
     else                 linea.classList.add('oculto');
@@ -430,7 +468,7 @@ export async function formularioServicio(reg, fecha, alGuardar) {
       // El nivel se ve aquí mismo: es el momento en que hace falta saberlo.
       nota: [c.nivel && c.nivel !== 'ninguno' ? nombreNivel(c.nivel) : null,
              c.visitas ? `${c.visitas} visitas` : 'Nuevo'].filter(Boolean).join(' · ') }),
-    alElegir: c => cliente = c,
+    alElegir: c => { cliente = c; recalcularVip(); },
     permitirCrear: crearClienteConAviso,
     textoCrear: 'Crear cliente'
   });
