@@ -7,7 +7,8 @@
 // ===========================================================================
 import { estado, hoy, horaAhora, hora12, sumarMinutos, monto, numero,
          escapar, mensajeError, vibrar, esAdmin, pagoPrevisto,
-         precioBasePago, pctDeModalidad, nombreNivel, descuentoVip } from './core.js';
+         precioBasePago, pctDeModalidad, nombreNivel, descuentoVip,
+         etiquetaCliente } from './core.js';
 import { $, abrirHoja, cerrarHoja, avisar, confirmar, autocompletar } from './ui.js';
 import * as D from './datos.js';
 
@@ -36,8 +37,10 @@ export function reservaRapida(fecha, alGuardar) {
     contenedor: cuerpo.querySelector('#rr-cliente'),
     etiqueta: 'Nombre o apodo',
     buscar: D.buscarClientes,
-    pintar: c => ({ titulo: c.nombre || 'Sin nombre',
-                    nota: c.visitas ? `${c.visitas} ${c.visitas === 1 ? 'visita' : 'visitas'}` : 'Nuevo' }),
+    pintar: c => ({ titulo: etiquetaCliente(c),
+                    nota: [c.nivel && c.nivel !== 'ninguno' ? nombreNivel(c.nivel) : null,
+                           c.visitas ? `${c.visitas} ${c.visitas === 1 ? 'visita' : 'visitas'}` : 'Nuevo'
+                          ].filter(Boolean).join(' · ') }),
     alElegir: c => cliente = c,
     permitirCrear: (t) => ({ id: null, nombre: t, __texto: true }),
     textoCrear: 'Anotar como'
@@ -463,8 +466,7 @@ export async function formularioServicio(reg, fecha, alGuardar) {
     contenedor: el('#f-cliente'), etiqueta: 'Cliente', valorInicial: cliente,
     buscar: D.buscarClientes,
     pintar: c => ({
-      titulo: (c.nivel === 'black' ? '★ ' : c.nivel === 'clasico' ? '★ ' : '')
-              + (c.nombre || 'Sin nombre'),
+      titulo: etiquetaCliente(c),
       // El nivel se ve aquí mismo: es el momento en que hace falta saberlo.
       nota: [c.nivel && c.nivel !== 'ninguno' ? nombreNivel(c.nivel) : null,
              c.visitas ? `${c.visitas} visitas` : 'Nuevo'].filter(Boolean).join(' · ') }),

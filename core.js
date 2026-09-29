@@ -190,6 +190,14 @@ export function insigniaNivel(nivel, { texto = false } = {}) {
   return '';
 }
 
+// Nombre del cliente con su nivel delante, para los sitios donde solo cabe
+// texto plano (el buscador escapa el HTML, así que la pastilla no sirve ahí).
+// Black lleva la palabra: con solo la estrella no se distinguía de Clásico.
+export const etiquetaCliente = c =>
+  (c?.nivel === 'black'   ? '★ BLACK · '
+ : c?.nivel === 'clasico' ? '★ '
+ : '') + (c?.nombre || 'Sin nombre');
+
 export const nombreNivel = n =>
   n === 'black' ? 'VIP Black' : n === 'clasico' ? 'VIP Clásico' : 'Sin nivel';
 

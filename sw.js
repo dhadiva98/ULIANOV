@@ -5,7 +5,7 @@
    escribir sobre la misma información centralizada. Una copia local sería
    una segunda base de datos, y eso es exactamente lo que hay que evitar.
    =========================================================================== */
-const VERSION = 'ulianov-v15-descuentos';
+const VERSION = 'ulianov-v16-nivel-buscador';
 const ARMAZON = [
   './', './index.html', './styles.css', './config.js', './manifest.json',
   './app.js', './core.js', './ui.js', './datos.js', './acceso.js',
