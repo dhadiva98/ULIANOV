@@ -5,7 +5,7 @@
    escribir sobre la misma información centralizada. Una copia local sería
    una segunda base de datos, y eso es exactamente lo que hay que evitar.
    =========================================================================== */
-const VERSION = 'ulianov-v16-nivel-buscador';
+const VERSION = 'ulianov-v17-una-sola-app';
 const ARMAZON = [
   './', './index.html', './styles.css', './config.js', './manifest.json',
   './app.js', './core.js', './ui.js', './datos.js', './acceso.js',
@@ -36,6 +36,11 @@ self.addEventListener('fetch', e => {
         caches.open(VERSION).then(c => c.put(e.request, copia));
         return r;
       })
-      .catch(() => caches.match(e.request))
+      // Sin red: se sirve de la caché. Para una navegación se devuelve el
+      // armazón aunque la dirección no coincida exactamente, porque
+      // "/ULIANOV/" y "/ULIANOV/index.html" son la MISMA pantalla aunque
+      // el navegador las vea como direcciones distintas.
+      .catch(() => caches.match(e.request).then(r =>
+        r || (e.request.mode === 'navigate' ? caches.match('./index.html') : undefined)))
   );
 });

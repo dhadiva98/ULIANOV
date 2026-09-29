@@ -1,8 +1,9 @@
 {
+  "id": "./",
   "name": "Ulianov",
   "short_name": "Ulianov",
   "description": "Gestión interna del spa Ulianov",
-  "start_url": "./index.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",

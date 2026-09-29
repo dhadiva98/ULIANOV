@@ -75,6 +75,43 @@ async function avisoDiaCerrado() {
   } catch (_) { caja.classList.add('oculto'); }
 }
 
+// --- ¿La aplicación ya está abierta en otra ventana? ------------------------
+// Dos pestañas a la vez no rompen nada —los datos viven en el servidor— pero
+// confunden: se corrige algo en una y la otra queda mostrando lo de antes.
+// Esto avisa; no cierra nada por su cuenta.
+function vigilarDuplicadas() {
+  let canal;
+  try { canal = new BroadcastChannel('ulianov.ventanas'); }
+  catch { return; }                    // navegador sin soporte: se deja pasar
+
+  const yo = Math.random().toString(36).slice(2);
+  const caja = $('#aviso-duplicada');
+  let avisado = false;
+
+  const mostrar = () => {
+    if (avisado || !caja) return;
+    avisado = true;
+    caja.innerHTML =
+      'Ulianov ya está abierto en otra ventana de este equipo. '
+      + 'Trabaja en una sola para no ver datos desactualizados. '
+      + '<button class="enlace" id="av-dup-ok" style="margin-left:6px">Entendido</button>';
+    caja.classList.remove('oculto');
+    caja.querySelector('#av-dup-ok').onclick = () => caja.classList.add('oculto');
+  };
+
+  canal.onmessage = e => {
+    const m = e.data;
+    if (!m || m.de === yo) return;
+    // Alguien pregunta: se le contesta que esta ventana ya existe.
+    if (m.tipo === 'hola')  canal.postMessage({ tipo: 'aqui', de: yo });
+    // Alguien contesta, o alguien nuevo saluda: hay más de una abierta.
+    if (m.tipo === 'aqui' || m.tipo === 'hola') mostrar();
+  };
+
+  canal.postMessage({ tipo: 'hola', de: yo });
+  window.addEventListener('pagehide', () => { try { canal.close(); } catch {} });
+}
+
 // --- Menú lateral en móvil --------------------------------------------------
 const abrirLateral  = () => { $('#lateral').classList.add('abierto'); $('#velo').classList.remove('oculto'); };
 const cerrarLateral = () => { $('#lateral').classList.remove('abierto'); $('#velo').classList.add('oculto'); };
@@ -178,6 +215,7 @@ iniciarAcceso(() => {
   // venir no dispara nada. Este repaso los pone al día una vez por jornada:
   // si ya se hizo hoy, el servidor no hace trabajo de más.
   D.actualizarNiveles().catch(() => {});
+  vigilarDuplicadas();
 }).catch(e => {
   document.body.innerHTML =
     `<div class="pantalla-plena"><p class="error">${mensajeError(e)}</p></div>`;
