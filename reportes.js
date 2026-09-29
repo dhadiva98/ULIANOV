@@ -203,12 +203,12 @@ async function exportarClientes() {
   try {
     const cs = await D.clientes();
     descargar(cs.map(c => ({
-      ID: c.id, Nombre: c.nombre || '', Teléfono: c.telefono || '',
+      ID: c.id, Nombre: c.nombre || '',
       'Fecha de registro': fechaCorta(c.created_at?.slice(0, 10)),
       Visitas: c.visitas, 'Última visita': c.ultima_visita ? fechaCorta(c.ultima_visita) : '',
       Nivel: c.nivel === 'black' ? 'VIP Black' : c.nivel === 'clasico' ? 'VIP Clásico' : '',
       'Visitas últimos 30 días': c.visitas_30d ?? 0,
-      'Black fijo a mano': c.vip ? 'Sí' : 'No', Observaciones: c.observaciones || ''
+      'Black fijo a mano': c.vip ? 'Sí' : 'No'
     })), 'Clientes', `clientes_${hoy()}.xlsx`);
   } catch (ex) { avisar(mensajeError(ex), 'error'); }
 }

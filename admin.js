@@ -81,7 +81,44 @@ function gestionar(p) {
        el dinero acumulado: Resumen, Caja, Reportes ni el cierre.</p>
     <button class="btn ${p.activo ? 'btn--peligro' : 'btn--principal'} btn--bloque" id="u-activo">
       ${p.activo ? 'Desactivar esta persona' : 'Volver a activar'}</button>
-    ${p.activo ? '<p class="ayuda">Desactivar corta el acceso desde todos sus equipos, de inmediato y sin excepción.</p>' : ''}`);
+    ${p.activo ? '<p class="ayuda">Desactivar corta el acceso desde todos sus equipos, de inmediato y sin excepción.</p>' : ''}
+
+    <div style="border-top:1px solid var(--borde);margin:20px 0 0;padding-top:18px">
+      <span class="eyebrow" style="display:block;margin-bottom:10px">Contraseña</span>
+      <label class="campo"><span>Nueva contraseña para ${escapar(p.nombre)}</span>
+        <input type="text" id="u-clave" autocomplete="off"
+               placeholder="mínimo 8 caracteres"></label>
+      <p class="ayuda" style="margin:-8px 0 14px">Se la tendrás que decir tú. El PIN no cambia:
+         ese es de cada equipo y lo elige quien lo usa.</p>
+      <p class="error" id="u-clave-err" hidden></p>
+      <button class="btn btn--neutro btn--bloque" id="u-clave-ok">Cambiar su contraseña</button>
+    </div>`);
+
+  cuerpo.querySelector('#u-clave-ok').onclick = async e => {
+    const inp = cuerpo.querySelector('#u-clave');
+    const err = cuerpo.querySelector('#u-clave-err');
+    err.hidden = true;
+    const clave = inp.value;
+    if (clave.length < 8) {
+      err.textContent = 'La contraseña debe tener al menos 8 caracteres.';
+      err.hidden = false; return;
+    }
+    const ok = await confirmar({
+      titulo: 'Cambiar la contraseña',
+      texto: `${p.nombre} dejará de poder entrar con la contraseña anterior. `
+           + 'Tendrás que darle la nueva. Las sesiones ya abiertas siguen activas '
+           + 'hasta que cierren sesión.',
+      aceptar: 'Cambiarla'
+    });
+    if (!ok) return;
+    e.currentTarget.disabled = true;
+    try {
+      await D.cambiarClaveDe(p.id, clave);
+      inp.value = '';
+      avisar(`Contraseña de ${p.nombre} cambiada`, 'exito');
+    } catch (ex) { err.textContent = mensajeError(ex); err.hidden = false; }
+    e.currentTarget.disabled = false;
+  };
 
   cuerpo.querySelector('#u-rol').onchange = async e => {
     try { await D.cambiarRol(p.id, e.target.value); avisar('Rol actualizado', 'exito'); }

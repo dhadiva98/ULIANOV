@@ -17,7 +17,7 @@ const REGISTRO = `
   servicio_id, servicio_nombre_snapshot, cliente_id, cliente_texto, usuario_id,
   servicio:servicios ( id, masaje, modalidad, duracion, nombre_completo,
                        precio_referencial, terapeutas_requeridas, pago_reparto ),
-  cliente:clientes ( id, nombre, telefono, vip, visitas, ultima_visita, nivel, visitas_30d ),
+  cliente:clientes ( id, nombre, vip, visitas, ultima_visita, nivel, visitas_30d ),
   masajistas:registro_masajistas (
     orden, masajista_id, masajista_nombre_snapshot,
     masajista:masajistas ( id, nombre, apellido, eliminada ) )`;
@@ -211,6 +211,33 @@ export const guardarDescuentoVip = (id, t1, t2, t3, t4) =>
   sb.rpc('guardar_descuento_vip',
          { p_id: id, p_t1: t1, p_t2: t2, p_t3: t3, p_t4: t4 })
     .then(ok).then(r => { _reglasVip = null; return r; });
+
+// Ficha privada del cliente: teléfono y observaciones. El servidor solo se
+// la entrega a administración, así que para recepción esto devuelve vacío.
+// Cambiar la contraseña de otra persona. Va por una pieza aparte instalada
+// en Supabase, porque necesita permisos que no pueden vivir en esta app.
+export const cambiarClaveDe = async (usuarioId, clave) => {
+  const { data, error } = await sb.functions.invoke('cambiar-clave', {
+    body: { usuario_id: usuarioId, clave }
+  });
+  if (error) {
+    // El cuerpo del error trae el motivo real; el genérico no dice nada útil.
+    let detalle = '';
+    try { detalle = (await error.context?.json())?.error || ''; } catch {}
+    throw new Error(detalle || 'No se pudo cambiar la contraseña. '
+      + '¿Está instalada la pieza "cambiar-clave" en Supabase?');
+  }
+  if (data?.error) throw new Error(data.error);
+  return data;
+};
+
+export const fichaPrivada = id =>
+  sb.rpc('ficha_privada', { p_cliente: id }).then(ok)
+    .then(r => r?.[0] || null).catch(() => null);
+
+export const guardarFichaPrivada = (id, telefono, observaciones) =>
+  sb.rpc('guardar_ficha_privada',
+         { p_cliente: id, p_telefono: telefono, p_observaciones: observaciones }).then(ok);
 
 export const actualizarNiveles = () =>
   sb.rpc('actualizar_niveles').then(ok).catch(() => 0);

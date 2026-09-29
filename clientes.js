@@ -37,13 +37,12 @@ export async function vistaClientes() {
         : todos;
       caja.innerHTML = lista.length ? `
         <div class="panel"><div class="tabla-envoltura"><table class="a-tarjetas">
-          <thead><tr><th></th><th>Nombre</th><th>Teléfono</th>
+          <thead><tr><th></th><th>Nombre</th>
             <th class="num">Últimos 30 días</th><th class="num">Visitas</th>
             <th>Última visita</th></tr></thead>
           <tbody>${lista.map(c => `<tr data-clic data-id="${c.id}">
             <td style="width:74px">${insigniaNivel(c.nivel)}</td>
             <td class="destacado">${escapar(c.nombre || 'Sin nombre')}</td>
-            <td data-etiqueta="Teléfono">${c.telefono ? escapar(c.telefono) : '<span class="vacio">—</span>'}</td>
             <td class="num" data-etiqueta="Últimos 30 días">${c.visitas_30d ?? 0}</td>
             <td class="num" data-etiqueta="Visitas">${c.visitas}</td>
             <td data-etiqueta="Última">${c.ultima_visita ? fechaCorta(c.ultima_visita) : '<span class="vacio">—</span>'}</td>
@@ -68,7 +67,6 @@ export async function vistaClientes() {
 async function ficha(c) {
   const cuerpo = abrirHoja(c.nombre || 'Cliente', `
     <div class="tarifa" style="margin-bottom:18px">
-      <div class="tarifa__linea"><span>Teléfono</span><span>${c.telefono ? escapar(c.telefono) : '—'}</span></div>
       <div class="tarifa__linea"><span>Visitas</span><span>${c.visitas}</span></div>
       <div class="tarifa__linea"><span>Última visita</span><span>${c.ultima_visita ? fechaCorta(c.ultima_visita) : '—'}</span></div>
       <div class="tarifa__linea"><span>Visitas en los últimos 30 días</span>
@@ -81,17 +79,36 @@ async function ficha(c) {
       : c.nivel === 'black'   ? 'Se gana solo con 4 o más visitas en 30 días. Si baja el ritmo, se le respeta el nivel 30 días más.'
       : c.nivel === 'clasico' ? 'Se gana solo con 2 o 3 visitas en 30 días. Con una más pasa a VIP Black.'
       : 'Con 2 visitas en 30 días pasa solo a VIP Clásico.'}</p>
-    ${c.observaciones ? `<div class="panel" style="margin-bottom:18px"><div class="panel__cuerpo">
-      <span class="eyebrow">Observaciones</span><p style="margin:8px 0 0">${escapar(c.observaciones)}</p>
-    </div></div>` : ''}
+    <!-- Teléfono y observaciones viven en la ficha privada, que solo la
+         administración puede leer. Se piden aparte, después de abrir. -->
+    <div id="cf-privado"></div>
     <div class="barra-acciones">
-      <button class="btn btn--neutro" id="c-editar" style="flex:1">Editar datos</button>
+      ${esAdmin() ? '<button class="btn btn--neutro" id="c-editar" style="flex:1">Editar datos</button>' : ''}
       ${esAdmin() ? '<button class="btn btn--neutro" id="c-fusionar" style="flex:1">Fusionar</button>' : ''}
     </div>
     <span class="eyebrow" style="margin:6px 0 10px">Historial de visitas</span>
     <div id="c-hist">${esqueleto(3)}</div>`);
 
-  cuerpo.querySelector('#c-editar').onclick = () => editar(c);
+  // Con recepción el botón no existe, así que se comprueba antes de tocarlo.
+  const bEditar = cuerpo.querySelector('#c-editar');
+  if (bEditar) bEditar.onclick = () => { editar(c); };
+
+  // Los datos privados se piden aparte: el servidor solo se los da a la
+  // administración, así que con recepción esto queda vacío y no se ve nada.
+  (async () => {
+    const caja = cuerpo.querySelector('#cf-privado');
+    if (!caja || !esAdmin()) return;
+    const f = await D.fichaPrivada(c.id);
+    c.telefono = f?.telefono ?? null;          // el editor los necesita luego
+    c.observaciones = f?.observaciones ?? null;
+    if (!f?.telefono && !f?.observaciones) return;
+    caja.innerHTML = `
+      <div class="panel" style="margin-bottom:18px"><div class="panel__cuerpo">
+        <span class="eyebrow">Datos privados · solo administración</span>
+        ${f.telefono ? `<p style="margin:8px 0 0"><strong>${escapar(f.telefono)}</strong></p>` : ''}
+        ${f.observaciones ? `<p style="margin:8px 0 0">${escapar(f.observaciones)}</p>` : ''}
+      </div></div>`;
+  })();
   const f = cuerpo.querySelector('#c-fusionar');
   if (f) f.onclick = () => fusionar(c);
 
@@ -118,7 +135,16 @@ async function ficha(c) {
 }
 
 // Corregir el nombre actualiza todo el historial sin perder visitas.
-function editar(c) {
+async function editar(c) {
+  // Se piden los datos privados AQUÍ, no se confía en que ya estén cargados.
+  // Si se abriera el editor antes de que llegaran, el teléfono saldría vacío
+  // y al guardar se borraría sin que nadie se diera cuenta.
+  if (esAdmin() && c.telefono === undefined) {
+    const f = await D.fichaPrivada(c.id);
+    c.telefono = f?.telefono ?? null;
+    c.observaciones = f?.observaciones ?? null;
+  }
+
   const cuerpo = abrirHoja('Editar cliente', `
     <label class="campo"><span>Nombre</span>
       <input type="text" id="ce-nombre" value="${escapar(c.nombre || '')}"></label>
@@ -134,12 +160,16 @@ function editar(c) {
 
   cuerpo.querySelector('#ce-guardar').onclick = async () => {
     const nombreNuevo = cuerpo.querySelector('#ce-nombre').value.trim();
+    // Lo público va a la tabla de clientes; lo privado a la suya, que
+    // recepción no puede leer. Se llevan juntos hasta el momento de guardar.
     const datos = {
       id: c.id,
       nombre: nombreNuevo || null,
-      telefono: cuerpo.querySelector('#ce-tel').value.trim() || null,
       vip: cuerpo.querySelector('#ce-vip').checked,
-      observaciones: cuerpo.querySelector('#ce-obs').value.trim() || null
+      _privado: {
+        telefono:      cuerpo.querySelector('#ce-tel').value.trim(),
+        observaciones: cuerpo.querySelector('#ce-obs').value.trim()
+      }
     };
 
     // Corregir un nombre mal escrito suele significar que ya existe la
@@ -154,8 +184,10 @@ function editar(c) {
   };
 
   async function aplicar(datos) {
+    const { _privado, ...publico } = datos;
     try {
-      await D.guardarCliente(datos);
+      await D.guardarCliente(publico);
+      if (_privado) await D.guardarFichaPrivada(publico.id, _privado.telefono, _privado.observaciones);
       avisar('Cliente actualizado', 'exito');
       cerrarHoja();
       vistaClientes();
@@ -195,8 +227,6 @@ function proponerUnir(actual, gemelo, datos) {
         <b>${escapar(gemelo.nombre)}</b></div>
       <div class="tarifa__linea"><span>Visitas</span>
         <b>${gemelo.visitas ?? 0}</b></div>
-      <div class="tarifa__linea"><span>Teléfono</span>
-        <b>${escapar(gemelo.telefono || '—')}</b></div>
     </div>
 
     <button class="btn btn--principal btn--bloque" id="pu-unir">
@@ -213,7 +243,9 @@ function proponerUnir(actual, gemelo, datos) {
     try {
       // Primero se corrige el nombre, para que la ficha que sobreviva
       // quede bien escrita aunque la que se conserve sea la otra.
-      await D.guardarCliente(datos);
+      const { _privado, ...publico } = datos;
+      await D.guardarCliente(publico);
+      if (_privado) await D.guardarFichaPrivada(publico.id, _privado.telefono, _privado.observaciones);
       const r = await D.fusionarClientes(conservar, absorber);
       avisar(`Unidas. Se movieron ${r.registros_movidos} registros.`, 'exito');
       cerrarHoja();
@@ -223,7 +255,9 @@ function proponerUnir(actual, gemelo, datos) {
 
   cuerpo.querySelector('#pu-separado').onclick = async () => {
     try {
-      await D.guardarCliente(datos);
+      const { _privado, ...publico } = datos;
+      await D.guardarCliente(publico);
+      if (_privado) await D.guardarFichaPrivada(publico.id, _privado.telefono, _privado.observaciones);
       avisar('Guardado como ficha separada', 'exito');
       cerrarHoja();
       vistaClientes();
