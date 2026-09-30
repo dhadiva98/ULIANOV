@@ -97,8 +97,11 @@ export function sumarMinutos(hhmm, min) {
 export function monto(n) {
   if (n === null || n === undefined || n === '') return '—';
   const v = Number(n);
+  // Dos decimales cuando los hay, no uno: con el 35% aparecen pagos de
+  // S/ 57.75 y con un solo decimal se leían "S/ 57.8", cinco céntimos de más.
+  // En plata que se entrega en mano eso no puede pasar.
   const txt = Number.isInteger(v) ? v.toLocaleString('es-PE')
-                                  : v.toLocaleString('es-PE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+                                  : v.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return 'S/ ' + txt;
 }
 

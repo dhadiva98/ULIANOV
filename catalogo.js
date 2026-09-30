@@ -5,7 +5,7 @@
 //  precios distintos por modalidad y duración, y NO todas las combinaciones
 //  existen. Las que no existen se muestran como "–", nunca como precio cero.
 // ===========================================================================
-import { monto, escapar, mensajeError, numero } from './core.js';
+import { monto, escapar, mensajeError, numero, pctAplicable } from './core.js';
 import { $, abrirHoja, cerrarHoja, avisar, esqueleto, vacio, confirmar } from './ui.js';
 import * as D from './datos.js';
 
@@ -234,20 +234,38 @@ function editarServicio(s, recargar, opciones = null) {
     const precio = numero(cuerpo.querySelector('#e-precio').value);
     if (!(precio > 0)) { ayuda.textContent = ''; return; }
 
-    const cfg  = await D.configPagos();
-    const pool = precio * cfg.porcentaje / 100;
+    const cfg = await D.configPagos();
+
+    // El porcentaje NO es siempre el general: la modalidad puede tener el
+    // suyo (el holístico paga la mitad) y el masaje también (el Sorpresa
+    // paga 35%). Usar el general aquí mostraba un número que no era el que
+    // se iba a pagar.
+    let listas = { masajes: [], modalidades: [] };
+    try { listas = await D.listasCatalogo(); } catch { /* se usa el general */ }
+    const pct = pctAplicable(s.masaje, s.modalidad,
+                             listas.masajes, listas.modalidades, cfg.porcentaje);
+
+    const pool = precio * pct / 100;
     const rep  = dos ? cuerpo.querySelector('#e-reparto').value : 'porcentaje_dividido';
+    const base = Math.max(precio - Number(cfg.apoyo), 0);
+
+    // De dónde sale ese porcentaje, para que el número no parezca un error.
+    const deDonde =
+      pct === cfg.porcentaje ? ''
+      : (listas.modalidades || []).find(m => m.nombre === s.modalidad)?.pago_porcentaje != null
+        ? ` (${pct}%, el propio de la modalidad ${s.modalidad})`
+        : ` (${pct}%, el propio del ${s.masaje}; el general es ${cfg.porcentaje}%)`;
 
     ayuda.classList.remove('oculto');
     ayuda.textContent = !dos
-      ? `La masajista gana ${monto(pool)} (${cfg.porcentaje}% de ${monto(precio)}).`
+      ? `La masajista gana ${monto(pool)} (${pct}% de ${monto(precio)}).`
+        + (deDonde ? ' Este masaje no usa el porcentaje general' + deDonde + '.' : '')
       : rep === 'principal_apoyo'
         // Los S/25 de la apoyo salen del precio antes de sacar el porcentaje.
         ? `De ${monto(precio)} salen primero ${monto(cfg.apoyo)} para la de apoyo. `
-          + `Del resto (${monto(Math.max(precio - cfg.apoyo, 0))}), la principal gana `
-          + `${monto(Math.max(precio - cfg.apoyo, 0) * cfg.porcentaje / 100)}. `
-          + `El spa paga ${monto(Math.max(precio - cfg.apoyo, 0) * cfg.porcentaje / 100 + Number(cfg.apoyo))} en total.`
-        : `Cada una gana ${monto(pool / 2)}. El spa paga ${monto(pool)} en total.`;
+          + `Del resto (${monto(base)}), la principal gana ${monto(base * pct / 100)}`
+          + `${deDonde}. El spa paga ${monto(base * pct / 100 + Number(cfg.apoyo))} en total.`
+        : `Cada una gana ${monto(pool / 2)}${deDonde}. El spa paga ${monto(pool)} en total.`;
   };
   ['#e-terapeutas', '#e-reparto', '#e-precio'].forEach(sel =>
     cuerpo.querySelector(sel)?.addEventListener('input', sincronizarReparto));
