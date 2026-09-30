@@ -140,11 +140,18 @@ export function pagoPrevisto(precio, requeridas, reparto, orden, cfg) {
   const p = Number(precio);
   if (!(p > 0)) return null;
 
-  const n    = Math.max(Number(requeridas) || 1, 1);
-  const pool = r2(p * (cfg?.porcentaje ?? 40) / 100);
+  const n     = Math.max(Number(requeridas) || 1, 1);
+  const apoyo = Number(cfg?.apoyo ?? 25);
 
-  if (reparto === 'principal_apoyo')
-    return orden <= 1 ? pool : Number(cfg?.apoyo ?? 25);
+  if (reparto === 'principal_apoyo') {
+    // El monto de la apoyo sale PRIMERO del precio; el porcentaje de la
+    // principal se saca de lo que queda.
+    return orden <= 1
+      ? r2(Math.max(p - apoyo, 0) * (cfg?.porcentaje ?? 40) / 100)
+      : Math.min(apoyo, p);
+  }
+
+  const pool = r2(p * (cfg?.porcentaje ?? 40) / 100);
 
   // Se divide entre las que el tarifario exige, no entre las registradas:
   // un 4 manos con una sola masajista le paga a ella solo su mitad.
@@ -200,6 +207,19 @@ export const etiquetaCliente = c =>
 
 export const nombreNivel = n =>
   n === 'black' ? 'VIP Black' : n === 'clasico' ? 'VIP Clásico' : 'Sin nivel';
+
+// "julio de 2026". Se escribe a mano en vez de dejárselo al navegador porque
+// el mes se lee en la ficha del cliente y tiene que salir igual en el celular
+// de recepción que en la computadora, sin depender del idioma del equipo.
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
+               'agosto', 'setiembre', 'octubre', 'noviembre', 'diciembre'];
+
+export function mesEnPalabras(iso) {
+  if (!iso) return null;
+  const [a, m] = String(iso).split('-');
+  const nombre = MESES[Number(m) - 1];
+  return nombre ? `${nombre} de ${a}` : null;
+}
 
 // Descuento por nivel VIP. Espejo de descuento_vip() del servidor; aquí solo
 // sirve para precargar el precio mientras se llena el formulario. El número

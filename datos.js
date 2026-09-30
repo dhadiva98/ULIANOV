@@ -17,7 +17,7 @@ const REGISTRO = `
   servicio_id, servicio_nombre_snapshot, cliente_id, cliente_texto, usuario_id,
   servicio:servicios ( id, masaje, modalidad, duracion, nombre_completo,
                        precio_referencial, terapeutas_requeridas, pago_reparto ),
-  cliente:clientes ( id, nombre, vip, visitas, ultima_visita, nivel, visitas_30d ),
+  cliente:clientes ( id, nombre, vip, visitas, ultima_visita, nivel, visitas_mes ),
   masajistas:registro_masajistas (
     orden, masajista_id, masajista_nombre_snapshot,
     masajista:masajistas ( id, nombre, apellido, eliminada ) )`;

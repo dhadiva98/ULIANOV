@@ -5,7 +5,7 @@
 //  corregir el nombre actualiza automáticamente todo el historial.
 // ===========================================================================
 import { esAdmin, fechaCorta, monto, escapar, mensajeError, esperar,
-         insigniaNivel, nombreNivel } from './core.js';
+         insigniaNivel, nombreNivel, mesEnPalabras } from './core.js';
 import { $, abrirHoja, cerrarHoja, avisar, confirmar, esqueleto, vacio, autocompletar } from './ui.js';
 import * as D from './datos.js';
 
@@ -38,12 +38,12 @@ export async function vistaClientes() {
       caja.innerHTML = lista.length ? `
         <div class="panel"><div class="tabla-envoltura"><table class="a-tarjetas">
           <thead><tr><th></th><th>Nombre</th>
-            <th class="num">Últimos 30 días</th><th class="num">Visitas</th>
+            <th class="num">Este mes</th><th class="num">Visitas</th>
             <th>Última visita</th></tr></thead>
           <tbody>${lista.map(c => `<tr data-clic data-id="${c.id}">
             <td style="width:74px">${insigniaNivel(c.nivel)}</td>
             <td class="destacado">${escapar(c.nombre || 'Sin nombre')}</td>
-            <td class="num" data-etiqueta="Últimos 30 días">${c.visitas_30d ?? 0}</td>
+            <td class="num" data-etiqueta="Este mes">${c.visitas_mes ?? 0}</td>
             <td class="num" data-etiqueta="Visitas">${c.visitas}</td>
             <td data-etiqueta="Última">${c.ultima_visita ? fechaCorta(c.ultima_visita) : '<span class="vacio">—</span>'}</td>
           </tr>`).join('')}</tbody></table></div></div>`
@@ -69,16 +69,19 @@ async function ficha(c) {
     <div class="tarifa" style="margin-bottom:18px">
       <div class="tarifa__linea"><span>Visitas</span><span>${c.visitas}</span></div>
       <div class="tarifa__linea"><span>Última visita</span><span>${c.ultima_visita ? fechaCorta(c.ultima_visita) : '—'}</span></div>
-      <div class="tarifa__linea"><span>Visitas en los últimos 30 días</span>
-        <span>${c.visitas_30d ?? 0}</span></div>
+      <div class="tarifa__linea"><span>Visitas este mes</span>
+        <span>${c.visitas_mes ?? 0}</span></div>
       <div class="tarifa__linea"><span>Nivel</span>
         <span>${insigniaNivel(c.nivel, { texto: true }) || 'Sin nivel'}</span></div>
+      ${c.nivel && c.nivel !== 'ninguno' && c.nivel_confirmado_en ? `
+      <div class="tarifa__linea"><span>Lo ganó en</span>
+        <span>${escapar(mesEnPalabras(c.nivel_confirmado_en) || '—')}</span></div>` : ''}
     </div>
     <p class="ayuda" style="margin:-10px 0 18px">${
-      c.vip ? 'Tiene la estrella puesta a mano, así que es VIP Black siempre, vengan las visitas que vengan.'
-      : c.nivel === 'black'   ? 'Se gana solo con 4 o más visitas en 30 días. Si baja el ritmo, se le respeta el nivel 30 días más.'
-      : c.nivel === 'clasico' ? 'Se gana solo con 2 o 3 visitas en 30 días. Con una más pasa a VIP Black.'
-      : 'Con 2 visitas en 30 días pasa solo a VIP Clásico.'}</p>
+      c.vip ? 'Tiene la estrella puesta a mano, así que es VIP Black mientras la tenga. Si se la quitas, vuelve al nivel que se haya ganado por sus visitas.'
+      : c.nivel === 'black'   ? 'Vino 4 veces en un mismo mes y con eso el nivel ya es suyo. No tiene que volver a ganarlo cada mes.'
+      : c.nivel === 'clasico' ? 'Vino 2 o 3 veces en un mismo mes y con eso el nivel ya es suyo. Si algún mes llega a 4 visitas, pasa a VIP Black.'
+      : 'Con 2 visitas en un mismo mes del calendario pasa solo a VIP Clásico, y con 4 a VIP Black. Una vez ganado, el nivel no se pierde.'}</p>
     <!-- Teléfono y observaciones viven en la ficha privada, que solo la
          administración puede leer. Se piden aparte, después de abrir. -->
     <div id="cf-privado"></div>

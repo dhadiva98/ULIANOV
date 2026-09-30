@@ -3,7 +3,8 @@
 //  Los datos se piden a Supabase en el momento de exportar. El Excel es
 //  siempre una salida, nunca una fuente de información.
 // ===========================================================================
-import { hoy, sumarDias, fechaCorta, hora12, monto, numero, escapar, mensajeError } from './core.js';
+import { hoy, sumarDias, fechaCorta, hora12, monto, numero, escapar, mensajeError,
+         mesEnPalabras } from './core.js';
 import { $, avisar, esqueleto, vacio } from './ui.js';
 import * as D from './datos.js';
 
@@ -207,7 +208,8 @@ async function exportarClientes() {
       'Fecha de registro': fechaCorta(c.created_at?.slice(0, 10)),
       Visitas: c.visitas, 'Última visita': c.ultima_visita ? fechaCorta(c.ultima_visita) : '',
       Nivel: c.nivel === 'black' ? 'VIP Black' : c.nivel === 'clasico' ? 'VIP Clásico' : '',
-      'Visitas últimos 30 días': c.visitas_30d ?? 0,
+      'Visitas este mes': c.visitas_mes ?? 0,
+      'Ganó el nivel en': mesEnPalabras(c.nivel_confirmado_en) || '',
       'Black fijo a mano': c.vip ? 'Sí' : 'No'
     })), 'Clientes', `clientes_${hoy()}.xlsx`);
   } catch (ex) { avisar(mensajeError(ex), 'error'); }
