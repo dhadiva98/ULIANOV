@@ -167,6 +167,44 @@ export async function configNiveles(recargar = false) {
   return _cfgNiveles;
 }
 
+// ---------------------------------------------------------------------------
+//  EVENTOS CON DESCUENTO POR FECHA
+//  Recepción los lee (los necesita para que el precio salga bien en pantalla);
+//  crearlos y cambiarlos es solo de administración, y esa barrera está en el
+//  servidor, no en que el botón no se vea.
+// ---------------------------------------------------------------------------
+let _eventos = null;
+
+export async function eventos(recargar = false) {
+  if (_eventos && !recargar) return _eventos;
+  try {
+    _eventos = await sb.from('eventos').select('*')
+      .order('desde_mes').order('desde_dia').then(ok);
+  } catch { _eventos = []; }   // sin eventos la pantalla sigue funcionando
+  return _eventos;
+}
+
+export const guardarEvento = e => {
+  _eventos = null;
+  const fila = {
+    nombre: e.nombre, icono: e.icono || null,
+    desde_dia: e.desde_dia, desde_mes: e.desde_mes,
+    hasta_dia: e.hasta_dia, hasta_mes: e.hasta_mes,
+    anio: e.anio ?? null,
+    masaje: e.masaje || null, modalidad: e.modalidad || null,
+    duracion: e.duracion || null,
+    monto: e.monto, activo: e.activo
+  };
+  return e.id
+    ? sb.from('eventos').update(fila).eq('id', e.id).select().single().then(ok)
+    : sb.from('eventos').insert(fila).select().single().then(ok);
+};
+
+export const borrarEvento = id => {
+  _eventos = null;
+  return sb.from('eventos').delete().eq('id', id).then(ok);
+};
+
 export const guardarConfigPagos = async (porcentaje, apoyo) => {
   const r = await sb.from('configuracion').upsert([
     { clave: 'pago_porcentaje',  valor: String(porcentaje) },
@@ -187,8 +225,29 @@ export const pagosDeRegistro = id =>
 // --- Pago diario -----------------------------------------------------------
 // El monto lo recalcula el servidor al marcar: nunca se le manda desde aquí,
 // para que no pueda registrarse un pago por una cifra distinta a la real.
-export const pagosDelDia = fecha =>
-  sb.rpc('pagos_del_dia', { p_fecha: fecha }).then(ok);
+//
+// "Periodo" es el día (como era hasta setiembre) o la semana de domingo a
+// sábado (desde octubre). Se le pasa una fecha cualquiera y el servidor
+// resuelve a qué periodo pertenece.
+export const pagosDelPeriodo = fecha =>
+  sb.rpc('pagos_del_periodo', { p_fecha: fecha }).then(ok);
+
+export const adelantosDelPeriodo = fecha =>
+  sb.rpc('adelantos_del_periodo', { p_fecha: fecha }).then(ok);
+
+export const registrarAdelanto = (masajistaId, monto, formaPago, fecha, notas = null) =>
+  sb.rpc('registrar_adelanto', { p_masajista_id: masajistaId, p_monto: monto,
+                                 p_forma_pago: formaPago, p_fecha: fecha,
+                                 p_notas: notas }).then(ok);
+
+export const borrarAdelanto = id =>
+  sb.rpc('borrar_adelanto', { p_id: id }).then(ok);
+
+// Semanas anteriores que quedaron sin cerrar. Con pago diario un olvido se
+// veía al día siguiente; con pago semanal podría quedarse atrás sin que nadie
+// lo note, así que la pantalla lo avisa arriba del todo.
+export const periodosPendientes = () =>
+  sb.rpc('periodos_pendientes', {}).then(ok);
 
 export const marcarPago = (masajistaId, formaPago, fecha, notas = null) =>
   sb.rpc('marcar_pago', { p_masajista_id: masajistaId, p_forma_pago: formaPago,

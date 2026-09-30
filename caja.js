@@ -120,6 +120,13 @@ export async function vistaCaja(fecha = hoy()) {
         const dif = Number(rp?.con_diferencia) || 0;
         if (!npend && !dif) { caja.remove(); return; }
 
+        // Con pago semanal, de lunes a viernes SIEMPRE hay algo pendiente:
+        // es lo normal, no un descuido. Solo el día de pago es un aviso de
+        // verdad; el resto de la semana es información.
+        const semanal  = !!rp?.es_semanal;
+        const toca     = !semanal || !!rp?.es_dia_de_pago;
+        const cierra   = rp?.hasta ? fechaCorta(rp.hasta) : null;
+
         caja.className = 'panel';
         caja.innerHTML = `
           <div class="panel__cuerpo" style="display:flex;justify-content:space-between;
@@ -127,8 +134,12 @@ export async function vistaCaja(fecha = hoy()) {
             <div>
               <span class="eyebrow" style="display:block;margin-bottom:4px">Pago a las masajistas</span>
               <strong>${npend
-                ? `Faltan ${monto(pend)} por entregar a ${npend} ${npend === 1 ? 'señorita' : 'señoritas'}`
+                ? (toca
+                    ? `Faltan ${monto(pend)} por entregar a ${npend} ${npend === 1 ? 'señorita' : 'señoritas'}`
+                    : `Se les debe ${monto(pend)} de esta semana`)
                 : 'Hay pagos con diferencia por revisar'}</strong>
+              ${(npend && !toca && cierra) ? `<div class="ayuda" style="margin-top:4px">
+                   No hay nada que hacer hoy: la semana se paga el ${cierra}.</div>` : ''}
               ${dif ? `<div class="ayuda" style="color:var(--rojo);margin-top:4px">
                          ${dif} con diferencia: se corrigió un masaje después de pagarle.</div>` : ''}
             </div>
