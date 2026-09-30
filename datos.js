@@ -266,6 +266,11 @@ export const guardarFichaPrivada = (id, telefono, observaciones) =>
 export const actualizarNiveles = () =>
   sb.rpc('actualizar_niveles').then(ok).catch(() => 0);
 
+// El porcentaje propio de un masaje. null = usar el general de Configuración.
+export const configPagoMasaje = (nombre, porcentaje) =>
+  sb.from('masajes').update({ pago_porcentaje: porcentaje })
+    .eq('nombre', nombre).then(ok);
+
 export const configPagoModalidad = (nombre, porcentaje, masajeReferencia) =>
   sb.from('modalidades')
     .update({ pago_porcentaje: porcentaje, pago_masaje_referencia: masajeReferencia })

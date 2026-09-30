@@ -242,8 +242,11 @@ function editarServicio(s, recargar, opciones = null) {
     ayuda.textContent = !dos
       ? `La masajista gana ${monto(pool)} (${cfg.porcentaje}% de ${monto(precio)}).`
       : rep === 'principal_apoyo'
-        ? `La principal gana ${monto(pool)} y la de apoyo ${monto(cfg.apoyo)}. `
-          + `El spa paga ${monto(pool + cfg.apoyo)} en total.`
+        // Los S/25 de la apoyo salen del precio antes de sacar el porcentaje.
+        ? `De ${monto(precio)} salen primero ${monto(cfg.apoyo)} para la de apoyo. `
+          + `Del resto (${monto(Math.max(precio - cfg.apoyo, 0))}), la principal gana `
+          + `${monto(Math.max(precio - cfg.apoyo, 0) * cfg.porcentaje / 100)}. `
+          + `El spa paga ${monto(Math.max(precio - cfg.apoyo, 0) * cfg.porcentaje / 100 + Number(cfg.apoyo))} en total.`
         : `Cada una gana ${monto(pool / 2)}. El spa paga ${monto(pool)} en total.`;
   };
   ['#e-terapeutas', '#e-reparto', '#e-precio'].forEach(sel =>
@@ -300,13 +303,24 @@ async function renombrar(tabla, campo, valorActual, recargar) {
   // Las modalidades pueden tener su propia regla de pago. Holístico es el
   // caso: la señorita cobra la mitad, y siempre sobre el precio del Egypcio
   // de esa duración, no sobre el masaje que se hizo.
-  let mod = null, masajes = [];
+  let mod = null, masajes = [], mas = null;
   if (tabla === 'modalidades') {
     try {
       const l = await D.listasCatalogo();
       mod = (l.modalidades || []).find(m => m.nombre === valorActual) || {};
       masajes = (l.masajes || []).map(m => m.nombre);
     } catch { mod = {}; }
+  }
+
+  // Un masaje también puede tener su propio porcentaje. El Sorpresa es el
+  // caso: paga menos que el resto porque hay que pagarle a la de apoyo.
+  let apoyoMonto = 25;
+  if (tabla === 'masajes') {
+    try {
+      const l = await D.listasCatalogo();
+      mas = (l.masajes || []).find(m => m.nombre === valorActual) || {};
+      apoyoMonto = Number((await D.configPagos()).apoyo) || 25;
+    } catch { mas = {}; }
   }
 
   const bloquePago = !mod ? '' : `
@@ -329,6 +343,18 @@ async function renombrar(tabla, campo, valorActual, recargar) {
       <p class="ayuda" id="rn-pago-ej" style="margin:0"></p>
     </div>`;
 
+  const bloquePagoMasaje = !mas ? '' : `
+    <div class="tarifa" style="margin:4px 0 18px">
+      <span class="eyebrow" style="display:block;margin-bottom:10px">Cómo se paga este masaje</span>
+
+      <label class="campo"><span>Porcentaje para la masajista</span>
+        <input type="number" id="rn-pctm" step="0.5" min="0" max="100"
+               placeholder="vacío = usar el general"
+               value="${mas.pago_porcentaje ?? ''}"></label>
+
+      <p class="ayuda" id="rn-pagom-ej" style="margin:0"></p>
+    </div>`;
+
   const cuerpo = abrirHoja(`Renombrar ${queEs}`, `
     <label class="campo"><span>Nombre</span>
       <input type="text" id="rn-nombre" value="${escapar(valorActual)}"></label>
@@ -338,6 +364,7 @@ async function renombrar(tabla, campo, valorActual, recargar) {
       registradas conservan el nombre que tenían: su historial no se toca.</p>
 
     ${bloquePago}
+    ${bloquePagoMasaje}
 
     <p class="error" id="rn-error" hidden></p>
     <button class="btn btn--principal btn--bloque" id="rn-ok">Guardar</button>
@@ -365,6 +392,27 @@ async function renombrar(tabla, campo, valorActual, recargar) {
     verEjemplo();
   }
 
+  // Lo mismo para el masaje: que vea el número antes de guardar.
+  if (mas) {
+    const ejm = cuerpo.querySelector('#rn-pagom-ej');
+    const inp = cuerpo.querySelector('#rn-pctm');
+    const verEjemploMasaje = () => {
+      const txt = inp.value.trim();
+      const pct = txt === '' ? null : numero(txt);
+      ejm.textContent = pct == null
+        ? 'Sin número propio, este masaje paga el porcentaje general de '
+          + 'Configuración, como todos los demás.'
+        : `Sobre un precio de S/ 200, la masajista cobraría `
+          + `S/ ${(200 * pct / 100).toFixed(2)}. Si este masaje lleva señorita de `
+          + `apoyo, sus S/ ${apoyoMonto} salen del precio antes, así que la `
+          + `principal cobraría S/ ${(Math.max(200 - apoyoMonto, 0) * pct / 100).toFixed(2)}. `
+          + `En las modalidades con regla propia, como el holístico, manda la `
+          + `modalidad y este número no se usa.`;
+    };
+    inp.addEventListener('input', verEjemploMasaje);
+    verEjemploMasaje();
+  }
+
   cuerpo.querySelector('#rn-ok').onclick = async () => {
     const nuevo = cuerpo.querySelector('#rn-nombre').value.trim();
     if (!nuevo) return fallo('El nombre no puede quedar vacío.');
@@ -374,6 +422,12 @@ async function renombrar(tabla, campo, valorActual, recargar) {
         await D.configPagoModalidad(valorActual,
           pctTxt === '' ? null : numero(pctTxt),
           cuerpo.querySelector('#rn-ref').value || null);
+      }
+      // El porcentaje se graba con el nombre VIEJO, antes de renombrar: si se
+      // hiciera después, se buscaría por un nombre que ya no existe.
+      if (mas) {
+        const pctTxt = cuerpo.querySelector('#rn-pctm').value.trim();
+        await D.configPagoMasaje(valorActual, pctTxt === '' ? null : numero(pctTxt));
       }
       if (nuevo !== valorActual)
         await D.renombrarCatalogo(tabla, campo, valorActual, nuevo);

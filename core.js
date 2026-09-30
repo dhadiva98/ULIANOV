@@ -187,6 +187,23 @@ export function pctDeModalidad(nombreModalidad, modalidades = [], general = 40) 
   return m?.pago_porcentaje != null ? Number(m.pago_porcentaje) : general;
 }
 
+// El porcentaje que de verdad le toca a un servicio, con el mismo orden de
+// prioridad que usa el servidor al guardar la atención:
+//   1. la MODALIDAD, si tiene el suyo — el holístico paga la mitad y eso
+//      manda sobre todo, incluso sobre el porcentaje propio del masaje;
+//   2. el MASAJE, si tiene el suyo — aquí entra el Sorpresa;
+//   3. el general de Configuración.
+// Si esto y el servidor dejaran de coincidir, la pantalla mostraría un pago
+// distinto al que se guarda, así que los dos se cambian juntos.
+export function pctAplicable(nombreMasaje, nombreModalidad,
+                             masajes = [], modalidades = [], general = 40) {
+  const mod = modalidades.find(x => x.nombre === nombreModalidad);
+  if (mod?.pago_porcentaje != null) return Number(mod.pago_porcentaje);
+  const mas = masajes.find(x => x.nombre === nombreMasaje);
+  if (mas?.pago_porcentaje != null) return Number(mas.pago_porcentaje);
+  return general;
+}
+
 // El distintivo del nivel, en un solo sitio para que las cinco pantallas
 // que lo muestran no se desincronicen nunca.
 export function insigniaNivel(nivel, { texto = false } = {}) {

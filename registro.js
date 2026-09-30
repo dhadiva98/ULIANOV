@@ -7,7 +7,7 @@
 // ===========================================================================
 import { estado, hoy, horaAhora, hora12, sumarMinutos, monto, numero,
          escapar, mensajeError, vibrar, esAdmin, pagoPrevisto,
-         precioBasePago, pctDeModalidad, nombreNivel, descuentoVip,
+         precioBasePago, pctDeModalidad, pctAplicable, nombreNivel, descuentoVip,
          etiquetaCliente } from './core.js';
 import { $, abrirHoja, cerrarHoja, avisar, confirmar, autocompletar } from './ui.js';
 import * as D from './datos.js';
@@ -304,10 +304,15 @@ export async function formularioServicio(reg, fecha, alGuardar) {
   //  pantalla y esa masajista cobra solo su mitad.
   // ------------------------------------------------------------------------
   let cfgPagos = { porcentaje: 40, apoyo: 25 };
-  let modalidades = [];
+  let modalidades = [], masajes = [];
   D.configPagos().then(c => { cfgPagos = c; pintarPagos(); });
-  D.listasCatalogo().then(l => { modalidades = l.modalidades || []; pintarPagos(); })
-                    .catch(() => {});
+  // Hacen falta las dos listas: la modalidad y el masaje pueden traer cada uno
+  // su propio porcentaje, y el de la modalidad manda sobre el del masaje.
+  D.listasCatalogo().then(l => {
+    modalidades = l.modalidades || [];
+    masajes     = l.masajes || [];
+    pintarPagos();
+  }).catch(() => {});
 
   let firma = null;              // para repintar solo cuando de verdad cambia
   let extraCampos = 0;           // huecos que la administradora pidió a mano
@@ -406,7 +411,8 @@ export async function formularioServicio(reg, fecha, alGuardar) {
                         + 'Sin él no se puede calcular su pago.';
         return;
       }
-      const pct = pctDeModalidad(servicio.modalidad, modalidades, cfgPagos.porcentaje);
+      const pct = pctAplicable(servicio.masaje, servicio.modalidad,
+                               masajes, modalidades, cfgPagos.porcentaje);
       const m = pagoPrevisto(base.precio, req, rep, i + 1,
                              { porcentaje: pct, apoyo: cfgPagos.apoyo });
       pie.textContent = m == null ? ''
