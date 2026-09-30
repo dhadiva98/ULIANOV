@@ -11,6 +11,12 @@ import { formularioServicio, reservaRapida } from './registro.js';
 
 let seleccion = new Set();
 
+// Las anuladas salen de la agenda: solo la administración puede anular, así
+// que nadie necesita verlas para trabajar el día. Pero no desaparecen del
+// todo: con el botón "Ver anuladas" se muestran, que es el único camino para
+// quitarle la anulación a una que se anuló por error.
+let verAnuladas = false;
+
 // --- Nombre resuelto: vivo si existe, snapshot si fue eliminada -------------
 const nombreServicio = r => r.servicio?.nombre_completo || r.servicio_nombre_snapshot || null;
 
@@ -28,25 +34,40 @@ const nombreCliente = r => r.cliente?.nombre || r.cliente_texto || null;
 const oFalta = (v, clase = 'vacio') => v ? escapar(v) : `<span class="${clase}">—</span>`;
 
 // ===========================================================================
-export async function vistaAgenda(fecha = estado.fecha) {
+export async function vistaAgenda(fecha = estado.fecha, mostrarAnuladas = false) {
+  // Esconderlas es lo normal, verlas es la excepción: solo el botón las
+  // enciende, y cualquier otra entrada a la agenda vuelve a ocultarlas. Así
+  // no queda encendido de ayer sin que ella se acuerde de haberlo tocado.
+  verAnuladas = mostrarAnuladas;
   estado.fecha = fecha;
   const v = $('#vista');
-  v.innerHTML = barra(fecha) + esqueleto(6);
+  v.innerHTML = barra(fecha, 0) + esqueleto(6);
   conectarBarra(fecha);
 
   try {
-    const regs = await D.registrosDelDia(fecha);
-    v.innerHTML = barra(fecha) + tabla(regs, { conTotal: esAdmin() });
+    const todas    = await D.registrosDelDia(fecha);
+    const anuladas = todas.filter(r => r.anulado);
+    const regs     = verAnuladas ? todas : todas.filter(r => !r.anulado);
+
+    v.innerHTML = barra(fecha, anuladas.length)
+                + tabla(regs, { conTotal: esAdmin() });
     conectarBarra(fecha);
     conectarFilas(regs, () => vistaAgenda(fecha));
   } catch (ex) {
-    v.innerHTML = barra(fecha) + `<p class="error">${escapar(mensajeError(ex))}</p>`;
+    v.innerHTML = barra(fecha, 0) + `<p class="error">${escapar(mensajeError(ex))}</p>`;
     conectarBarra(fecha);
   }
 }
 
-function barra(fecha) {
+function barra(fecha, cuantasAnuladas = 0) {
   const esHoy = fecha === hoy();
+  // El botón aparece solo cuando hay algo que ver. Un botón que casi siempre
+  // dice cero es ruido en la pantalla con la que se trabaja todo el día.
+  const botonAnuladas = (esAdmin() && cuantasAnuladas > 0)
+    ? `<button class="btn btn--neutro" id="a-anuladas">${verAnuladas
+        ? 'Ocultar anuladas'
+        : `Ver ${cuantasAnuladas} ${cuantasAnuladas === 1 ? 'anulada' : 'anuladas'}`}</button>`
+    : '';
   return `
     <div class="barra-acciones">
       <button class="btn btn--principal" id="a-nuevo">+ Nuevo</button>
@@ -55,6 +76,7 @@ function barra(fecha) {
       <input type="date" class="btn btn--neutro" id="a-fecha" value="${fecha}"
              style="padding:12px 14px;font-size:15px">
       ${!esHoy ? '<button class="btn btn--neutro" id="a-hoy">Volver a hoy</button>' : ''}
+      ${botonAnuladas}
       <button class="btn btn--neutro oculto" id="a-borrar">Borrar seleccionado</button>
     </div>
     <p class="eyebrow" style="margin:-8px 0 16px">${escapar(fechaLarga(fecha))}</p>`;
@@ -66,6 +88,8 @@ function conectarBarra(fecha) {
   $('#a-proximas').onclick = proximasReservas;
   $('#a-fecha').onchange   = e => vistaAgenda(e.target.value);
   const h = $('#a-hoy'); if (h) h.onclick = () => vistaAgenda(hoy());
+  const an = $('#a-anuladas');
+  if (an) an.onclick = () => vistaAgenda(fecha, !verAnuladas);
   const b = $('#a-borrar');
   if (b) b.onclick = async () => {
     const ok = await confirmar({
@@ -213,7 +237,9 @@ export function detalle(r, recargar) {
       </div>` : ''}
     ${esAdmin() && r.anulado ? `
       <p class="ayuda" style="margin:18px 0 10px">
-        Solo la administración ve los registros anulados. En recepción no aparecen.</p>
+        Los registros anulados no salen en la agenda. Están aquí, en
+        &laquo;Ver anuladas&raquo;, y siguen contando en el historial del
+        cliente y en la auditoría.</p>
       <button class="btn btn--principal btn--bloque" id="d-desanular">
         Quitar la anulación</button>` : ''}`);
 
