@@ -5,7 +5,8 @@
 //  corregir el nombre actualiza automáticamente todo el historial.
 // ===========================================================================
 import { esAdmin, fechaCorta, monto, escapar, mensajeError, esperar,
-         insigniaNivel, nombreNivel, mesEnPalabras } from './core.js';
+         insigniaNivel, nombreNivel, mesEnPalabras,
+         faltanParaMantener, pideParaMantener, nivelSiCierraAsi } from './core.js';
 import { $, abrirHoja, cerrarHoja, avisar, confirmar, esqueleto, vacio, autocompletar } from './ui.js';
 import * as D from './datos.js';
 
@@ -22,6 +23,7 @@ export async function vistaClientes() {
         <option value="black">Solo VIP Black</option>
         <option value="clasico">Solo VIP Clásico</option>
         <option value="ninguno">Sin nivel</option>
+        <option value="riesgo">En riesgo este mes</option>
       </select>
       ${esAdmin() ? '<button class="btn btn--neutro" id="c-duplicados">Posibles duplicados</button>' : ''}
     </div>
@@ -32,8 +34,13 @@ export async function vistaClientes() {
     try {
       const nivelPedido = document.querySelector('#c-nivel')?.value || '';
       const todos = await D.clientes(texto);
-      const lista = nivelPedido
-        ? todos.filter(c => (c.nivel || 'ninguno') === nivelPedido)
+      const cfgN = await D.configNiveles().catch(() => undefined);
+      // "En riesgo" son los que tienen nivel y este mes todavía no llegaron a
+      // las visitas que necesitan para conservarlo. Es la lista para llamar.
+      const enRiesgo = c => !c.vip && (c.nivel || 'ninguno') !== 'ninguno'
+        && faltanParaMantener(c.nivel, c.visitas_mes, cfgN) > 0;
+      const lista = nivelPedido === 'riesgo' ? todos.filter(enRiesgo)
+        : nivelPedido ? todos.filter(c => (c.nivel || 'ninguno') === nivelPedido)
         : todos;
       caja.innerHTML = lista.length ? `
         <div class="panel"><div class="tabla-envoltura"><table class="a-tarjetas">
@@ -47,7 +54,9 @@ export async function vistaClientes() {
             <td class="num" data-etiqueta="Visitas">${c.visitas}</td>
             <td data-etiqueta="Última">${c.ultima_visita ? fechaCorta(c.ultima_visita) : '<span class="vacio">—</span>'}</td>
           </tr>`).join('')}</tbody></table></div></div>`
-        : vacio(nivelPedido ? `Ningún cliente en ${nombreNivel(nivelPedido).toLowerCase()}.`
+        : vacio(nivelPedido === 'riesgo'
+                ? 'Ningún cliente en riesgo: todos los que tienen nivel ya vinieron las veces que necesitan este mes.'
+              : nivelPedido ? `Ningún cliente en ${nombreNivel(nivelPedido).toLowerCase()}.`
               : texto ? 'Ningún cliente con ese nombre.'
               : 'Todavía no hay clientes registrados.');
 
@@ -74,14 +83,13 @@ async function ficha(c) {
       <div class="tarifa__linea"><span>Nivel</span>
         <span>${insigniaNivel(c.nivel, { texto: true }) || 'Sin nivel'}</span></div>
       ${c.nivel && c.nivel !== 'ninguno' && c.nivel_confirmado_en ? `
-      <div class="tarifa__linea"><span>Lo ganó en</span>
+      <div class="tarifa__linea"><span>Tiene el nivel desde</span>
         <span>${escapar(mesEnPalabras(c.nivel_confirmado_en) || '—')}</span></div>` : ''}
     </div>
-    <p class="ayuda" style="margin:-10px 0 18px">${
-      c.vip ? 'Tiene la estrella puesta a mano, así que es VIP Black mientras la tenga. Si se la quitas, vuelve al nivel que se haya ganado por sus visitas.'
-      : c.nivel === 'black'   ? 'Vino 4 veces en un mismo mes y con eso el nivel ya es suyo. No tiene que volver a ganarlo cada mes.'
-      : c.nivel === 'clasico' ? 'Vino 2 o 3 veces en un mismo mes y con eso el nivel ya es suyo. Si algún mes llega a 4 visitas, pasa a VIP Black.'
-      : 'Con 2 visitas en un mismo mes del calendario pasa solo a VIP Clásico, y con 4 a VIP Black. Una vez ganado, el nivel no se pierde.'}</p>
+    <!-- Cuántas visitas necesita para conservar el nivel y qué pasa si no
+         llega. Los números salen de la configuración, no van escritos aquí,
+         así que se pide aparte y se rellena al llegar. -->
+    <div id="cf-nivel"></div>
     <!-- Teléfono y observaciones viven en la ficha privada, que solo la
          administración puede leer. Se piden aparte, después de abrir. -->
     <div id="cf-privado"></div>
@@ -91,6 +99,39 @@ async function ficha(c) {
     </div>
     <span class="eyebrow" style="margin:6px 0 10px">Historial de visitas</span>
     <div id="c-hist">${esqueleto(3)}</div>`);
+
+  // La explicación del nivel, con los números de la configuración.
+  D.configNiveles().then(cfg => {
+    const caja = cuerpo.querySelector('#cf-nivel');
+    if (!caja) return;
+    const vino   = c.visitas_mes ?? 0;
+    const pide   = pideParaMantener(c.nivel, cfg);
+    const faltan = faltanParaMantener(c.nivel, c.visitas_mes, cfg);
+
+    // La regla, dicha con los umbrales que están puestos hoy.
+    const regla = c.vip
+      ? 'Tiene la estrella puesta a mano, así que es VIP Black mientras la tenga, vengan las visitas que vengan. Si se la quitas, vuelve al nivel que sostengan sus visitas.'
+      : c.nivel === 'black'
+      ? `El VIP Black se gana con ${cfg.ganaBlack} visitas en un mes y se conserva con ${cfg.mantBlack} cada mes. Si un mes solo viene ${cfg.mantClasico}, pasa a VIP Clásico; si viene menos, se queda sin nivel y para recuperarlo tendría que juntar otra vez ${cfg.ganaBlack} en un mes.`
+      : c.nivel === 'clasico'
+      ? `El VIP Clásico se gana con ${cfg.ganaClasico} visitas en un mes y se conserva con ${cfg.mantClasico} cada mes. Si un mes no llega, se queda sin nivel. Con ${cfg.ganaBlack} visitas en un mes pasa a VIP Black.`
+      : `Con ${cfg.ganaClasico} visitas en un mismo mes pasa a VIP Clásico, y con ${cfg.ganaBlack} a VIP Black.`;
+
+    // Y cómo va este mes, que es lo que se puede hacer algo al respecto.
+    const situacion = (c.vip || !c.nivel || c.nivel === 'ninguno') ? ''
+      : faltan === 0
+      ? `<p class="ayuda" style="margin:0 0 18px">Este mes ya vino ${vino} ${vino === 1 ? 'vez' : 'veces'}: con eso conserva su nivel cuando el mes cierre.</p>`
+      : `<p class="ayuda" style="margin:0 0 18px"><strong>Este mes lleva ${vino} de las ${pide} visitas que necesita.</strong> Le ${
+          faltan === 1 ? 'falta 1' : `faltan ${faltan}`
+        } antes de que termine el mes: si cierra así, ${
+          nivelSiCierraAsi(c.nivel, vino, cfg) === 'ninguno'
+            ? 'se queda sin nivel'
+            : `pasa a ${nombreNivel(nivelSiCierraAsi(c.nivel, vino, cfg))}`
+        }.</p>`;
+
+    caja.innerHTML =
+      `<p class="ayuda" style="margin:-10px 0 ${situacion ? '10px' : '18px'}">${regla}</p>` + situacion;
+  }).catch(() => {});
 
   // Con recepción el botón no existe, así que se comprueba antes de tocarlo.
   const bEditar = cuerpo.querySelector('#c-editar');

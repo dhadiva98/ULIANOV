@@ -4,7 +4,7 @@
 //  siempre una salida, nunca una fuente de información.
 // ===========================================================================
 import { hoy, sumarDias, fechaCorta, hora12, monto, numero, escapar, mensajeError,
-         mesEnPalabras } from './core.js';
+         mesEnPalabras, faltanParaMantener } from './core.js';
 import { $, avisar, esqueleto, vacio } from './ui.js';
 import * as D from './datos.js';
 
@@ -203,13 +203,15 @@ function exportarVentas(regs, desde, hasta) {
 async function exportarClientes() {
   try {
     const cs = await D.clientes();
+    const cfgN = await D.configNiveles().catch(() => undefined);
     descargar(cs.map(c => ({
       ID: c.id, Nombre: c.nombre || '',
       'Fecha de registro': fechaCorta(c.created_at?.slice(0, 10)),
       Visitas: c.visitas, 'Última visita': c.ultima_visita ? fechaCorta(c.ultima_visita) : '',
       Nivel: c.nivel === 'black' ? 'VIP Black' : c.nivel === 'clasico' ? 'VIP Clásico' : '',
       'Visitas este mes': c.visitas_mes ?? 0,
-      'Ganó el nivel en': mesEnPalabras(c.nivel_confirmado_en) || '',
+      'Le faltan este mes': c.vip ? 0 : faltanParaMantener(c.nivel, c.visitas_mes, cfgN),
+      'Tiene el nivel desde': mesEnPalabras(c.nivel_confirmado_en) || '',
       'Black fijo a mano': c.vip ? 'Sí' : 'No'
     })), 'Clientes', `clientes_${hoy()}.xlsx`);
   } catch (ex) { avisar(mensajeError(ex), 'error'); }

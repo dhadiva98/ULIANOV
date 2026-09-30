@@ -143,6 +143,30 @@ export async function configPagos(recargar = false) {
   return _cfgPagos;
 }
 
+// Los umbrales del programa VIP: cuántas visitas hacen falta para ganar cada
+// nivel y cuántas para conservarlo. Igual que los de pago, se cambian en la
+// tabla de configuración y el programa los lee de ahí, no los lleva escritos.
+let _cfgNiveles = null;
+
+export async function configNiveles(recargar = false) {
+  if (_cfgNiveles && !recargar) return _cfgNiveles;
+  try {
+    const filas = await sb.from('configuracion').select('clave, valor')
+      .in('clave', ['vip_min_clasico', 'vip_min_black',
+                    'vip_mant_clasico', 'vip_mant_black']).then(ok);
+    const v = c => filas.find(f => f.clave === c)?.valor;
+    _cfgNiveles = {
+      ganaClasico: Number(v('vip_min_clasico'))  || 2,
+      ganaBlack:   Number(v('vip_min_black'))    || 4,
+      mantClasico: Number(v('vip_mant_clasico')) || 2,
+      mantBlack:   Number(v('vip_mant_black'))   || 3
+    };
+  } catch {
+    _cfgNiveles = { ganaClasico: 2, ganaBlack: 4, mantClasico: 2, mantBlack: 3 };
+  }
+  return _cfgNiveles;
+}
+
 export const guardarConfigPagos = async (porcentaje, apoyo) => {
   const r = await sb.from('configuracion').upsert([
     { clave: 'pago_porcentaje',  valor: String(porcentaje) },

@@ -208,6 +208,43 @@ export const etiquetaCliente = c =>
 export const nombreNivel = n =>
   n === 'black' ? 'VIP Black' : n === 'clasico' ? 'VIP Clásico' : 'Sin nivel';
 
+// Umbrales del programa VIP. Los de verdad viven en la tabla de configuración
+// y se cambian desde ahí; estos son solo el respaldo para que la pantalla no
+// se quede sin números si el servidor no contesta.
+export const NIVELES_POR_DEFECTO =
+  { ganaClasico: 2, ganaBlack: 4, mantClasico: 2, mantBlack: 3 };
+
+// Cuántas visitas le faltan este mes para no perder el nivel que tiene.
+// Espejo de faltan_para_mantener() del servidor.
+export function faltanParaMantener(nivel, visitasMes, cfg) {
+  const c = cfg || NIVELES_POR_DEFECTO;
+  const pide = nivel === 'black'   ? Number(c.mantBlack   ?? 3)
+             : nivel === 'clasico' ? Number(c.mantClasico ?? 2)
+             : 0;
+  return Math.max(pide - (Number(visitasMes) || 0), 0);
+}
+
+// Cuántas visitas pide el mes para conservar cada nivel.
+export const pideParaMantener = (nivel, cfg) => {
+  const c = cfg || NIVELES_POR_DEFECTO;
+  return nivel === 'black'   ? Number(c.mantBlack   ?? 3)
+       : nivel === 'clasico' ? Number(c.mantClasico ?? 2)
+       : 0;
+};
+
+// En qué nivel quedaría el cliente si el mes cerrara tal como está ahora.
+// Espejo de nivel_mantenible() del servidor, con el mismo tope: conservar
+// nunca sube de nivel, solo puede dejarlo igual o más abajo.
+export function nivelSiCierraAsi(nivel, visitasMes, cfg) {
+  const c = cfg || NIVELES_POR_DEFECTO;
+  const n = Number(visitasMes) || 0;
+  const sostiene = n >= Number(c.mantBlack   ?? 3) ? 'black'
+                 : n >= Number(c.mantClasico ?? 2) ? 'clasico'
+                 : 'ninguno';
+  const r = x => x === 'black' ? 2 : x === 'clasico' ? 1 : 0;
+  return r(sostiene) < r(nivel) ? sostiene : nivel;
+}
+
 // "julio de 2026". Se escribe a mano en vez de dejárselo al navegador porque
 // el mes se lee en la ficha del cliente y tiene que salir igual en el celular
 // de recepción que en la computadora, sin depender del idioma del equipo.
