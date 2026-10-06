@@ -8,6 +8,7 @@
 import { estado, hoy, horaAhora, hora12, sumarMinutos, monto, numero,
          escapar, mensajeError, vibrar, esAdmin, pagoPrevisto,
          precioBasePago, pctDeModalidad, pctAplicable, nombreNivel, descuentoVip,
+         descuentosAplicables,
          etiquetaCliente } from './core.js';
 import { $, abrirHoja, cerrarHoja, avisar, confirmar, autocompletar } from './ui.js';
 import * as D from './datos.js';
@@ -143,8 +144,14 @@ export async function formularioServicio(reg, fecha, alGuardar) {
   // más abajo: al abrir un registro ya guardado, la tarifa se pinta durante
   // esta misma inicialización y estas variables tienen que existir ya.
   let reglasVip = { reglas: [], tramos: {} };
+  let listaEventos = [];
   let dctoVip = 0, reglaVip = null, precioTocado = !!reg?.precio_cobrado;
+  // Las dos partes por separado: el descuento del nivel y el del evento. Se
+  // suman, pero en pantalla van en líneas distintas para que se vea de dónde
+  // sale cada sol.
+  let dctoNivel = 0, dctoEvento = 0, nombreDelEvento = null;
   D.reglasDescuentoVip().then(r => { reglasVip = r; recalcularVip(); }).catch(() => {});
+  D.eventos().then(e => { listaEventos = e; recalcularVip(); }).catch(() => {});
 
   const el = s => cuerpo.querySelector(s);
 
@@ -214,12 +221,22 @@ export async function formularioServicio(reg, fecha, alGuardar) {
   // cliente, que son las dos cosas que lo determinan.
   function recalcularVip() {
     const antes = dctoVip;
-    if (!servicio || !cliente?.nivel) { dctoVip = 0; reglaVip = null; }
+    if (!servicio) { dctoVip = 0; reglaVip = null; dctoNivel = 0; dctoEvento = 0;
+                     nombreDelEvento = null; }
     else {
-      const r = descuentoVip(cliente.nivel, servicio.precio_referencial,
-                             servicio.duracion, servicio.modalidad,
-                             reglasVip.reglas, reglasVip.tramos);
-      dctoVip = r.monto; reglaVip = r.regla;
+      // El evento depende de la FECHA del registro, no de hoy: si se anota
+      // una atención de ayer, le toca el evento de ayer.
+      const d = descuentosAplicables({
+        nivel: cliente?.nivel, masaje: servicio.masaje, modalidad: servicio.modalidad,
+        duracion: servicio.duracion, precio: servicio.precio_referencial,
+        fecha: el('#f-fecha')?.value || reg?.fecha || fecha,
+        reglas: reglasVip.reglas, tramos: reglasVip.tramos, eventos: listaEventos
+      });
+      dctoVip         = d.total;
+      reglaVip        = d.reglaNivel;
+      dctoNivel       = d.porNivel;
+      dctoEvento      = d.porEvento;
+      nombreDelEvento = d.evento;
     }
     if (!el('#f-tarifa')) return;
     // Si aún no se escribió un precio a mano, se repinta para que el campo
@@ -240,9 +257,12 @@ export async function formularioServicio(reg, fecha, alGuardar) {
     caja.innerHTML = `
       <div class="tarifa">
         <div class="tarifa__linea"><span>Tarifa referencial</span><span>${monto(ref)}</span></div>
-        <div class="tarifa__linea tarifa__linea--desc ${dctoVip > 0 ? '' : 'oculto'}" id="f-linea-vip">
+        <div class="tarifa__linea tarifa__linea--desc ${dctoNivel > 0 ? '' : 'oculto'}" id="f-linea-vip">
           <span id="f-vip-etq">${escapar(reglaVip || 'Descuento VIP')}</span>
-          <span id="f-vip-val">−${monto(dctoVip)}</span></div>
+          <span id="f-vip-val">−${monto(dctoNivel)}</span></div>
+        <div class="tarifa__linea tarifa__linea--desc ${dctoEvento > 0 ? '' : 'oculto'}" id="f-linea-evento">
+          <span>${escapar(nombreDelEvento || 'Evento')}</span>
+          <span>−${monto(dctoEvento)}</span></div>
         <div class="tarifa__linea tarifa__linea--desc oculto" id="f-linea-desc">
           <span id="f-desc-etq">Descuento</span><span id="f-desc-val"></span></div>
         <div class="tarifa__linea tarifa__linea--total"><span>Precio cobrado</span>
@@ -251,9 +271,14 @@ export async function formularioServicio(reg, fecha, alGuardar) {
       <label class="campo campo--monto"><span>Precio a cobrar</span>
         <input type="number" id="f-cobrado" inputmode="decimal" step="0.5" min="0"
                value="${actual ?? (reg?.precio_cobrado ?? sugerido)}"></label>
-      <p class="ayuda" style="margin:-10px 0 18px">${dctoVip > 0
-        ? 'El precio ya viene con el descuento de su nivel puesto. Puedes cambiarlo si hace falta.'
-        : 'La tarifa es solo una referencia. Puedes cobrar más o menos.'}</p>`;
+      <p class="ayuda" style="margin:-10px 0 18px">${
+        dctoNivel > 0 && dctoEvento > 0
+          ? 'El precio ya trae los dos descuentos: el de su nivel y el del evento. Puedes cambiarlo si hace falta.'
+        : dctoEvento > 0
+          ? 'El precio ya viene con el descuento del evento puesto. Puedes cambiarlo si hace falta.'
+        : dctoVip > 0
+          ? 'El precio ya viene con el descuento de su nivel puesto. Puedes cambiarlo si hace falta.'
+          : 'La tarifa es solo una referencia. Puedes cobrar más o menos.'}</p>`;
 
     el('#f-cobrado').addEventListener('input', () => { precioTocado = true; calcular(); });
     calcular();
@@ -292,6 +317,8 @@ export async function formularioServicio(reg, fecha, alGuardar) {
       : '';
   }
   el('#f-hora').addEventListener('input', actualizarTermina);
+  // Mover la fecha puede meter o sacar el registro de un evento.
+  el('#f-fecha')?.addEventListener('change', () => { recalcularVip(); });
 
   // === 4. Masajistas ======================================================
   //
@@ -493,6 +520,21 @@ export async function formularioServicio(reg, fecha, alGuardar) {
     buscadores.map(b => b.valor()).filter(Boolean).map(m => m.id)
       .filter((id, i, a) => a.indexOf(id) === i);
 
+  // A quién tiene sentido revisarle el horario.
+  //
+  // En el Sorpresa la señorita de apoyo entra solo unos minutos, no el masaje
+  // entero. Que a esa hora esté en otro masaje es lo normal, no un choque, y
+  // avisarlo cada vez obligaba a confirmar un diálogo en cada registro.
+  // A la principal sí se le revisa: ahí un cruce es un cruce.
+  const masajistasAVigilar = () => {
+    const hayApoyo = (servicio?.pago_reparto || 'porcentaje_dividido') === 'principal_apoyo';
+    return buscadores
+      .map((b, i) => ({ m: b.valor(), i }))
+      .filter(x => x.m && !(hayApoyo && x.i > 0))
+      .map(x => x.m.id)
+      .filter((id, i, a) => a.indexOf(id) === i);
+  };
+
   function datos(estadoDestino) {
     const c = cliente;
     return {
@@ -531,10 +573,13 @@ export async function formularioServicio(reg, fecha, alGuardar) {
           numero(el('#f-recibido').value) < cob)
         return fallo('El monto recibido es insuficiente.');
 
-      // Aviso de cruce de horarios: advierte, no bloquea.
-      if (el('#f-hora').value && ms.length) {
+      // Aviso de cruce de horarios: advierte, no bloquea. Y no se le revisa
+      // a la señorita de apoyo, que entra solo unos minutos.
+      const vigilar = masajistasAVigilar();
+      if (el('#f-hora').value && vigilar.length) {
         try {
-          const choques = await D.avisoSolapamiento(ms, el('#f-fecha').value || fecha, el('#f-hora').value,
+          const choques = await D.avisoSolapamiento(vigilar, el('#f-fecha').value || fecha,
+                                                    el('#f-hora').value,
                                                     servicio.duracion, reg?.id || null);
           if (choques?.length) {
             const c = choques[0];

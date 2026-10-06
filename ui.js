@@ -82,24 +82,68 @@ export function iniciarHoja() {
 }
 
 // --- Confirmación -----------------------------------------------------------
+// El diálogo de confirmación va en SU PROPIA CAPA, encima de lo que haya.
+//
+// Antes usaba la hoja normal, y eso tenía un defecto grave: la hoja es una
+// sola, así que abrirla encima de un formulario BORRABA el formulario. Al
+// aceptar, los campos ya no existían: el guardado reventaba sin decir nada y
+// no se guardaba nada. Pasaba cada vez que se pedía confirmación con un
+// formulario abierto, como el aviso de horarios cruzados al registrar.
+//
+// Con una capa propia, lo de abajo queda intacto.
 export function confirmar({ titulo, texto, aceptar = 'Continuar', peligro = false, doble = false }) {
   return new Promise(resolve => {
-    const cuerpo = abrirHoja(titulo, `
-      <p style="font-size:16.5px;line-height:1.55;margin:0 0 22px">${escapar(texto)}</p>
-      ${doble ? `<label class="casilla"><input type="checkbox" id="conf-doble">
-                 <span>Entiendo lo que va a pasar</span></label>` : ''}
-      <div class="barra-acciones" style="margin:0">
-        <button class="btn btn--neutro" id="conf-no" style="flex:1">Cancelar</button>
-        <button class="btn ${peligro ? 'btn--peligro' : 'btn--principal'}" id="conf-si"
-                style="flex:1" ${doble ? 'disabled' : ''}>${escapar(aceptar)}</button>
-      </div>`, () => resolve(false));
+    const capa = document.createElement('div');
+    capa.className = 'hoja';
+    capa.setAttribute('role', 'dialog');
+    capa.setAttribute('aria-modal', 'true');
+    capa.style.zIndex = '85';          // encima de la hoja (70), debajo de los avisos (90)
+    capa.innerHTML = `
+      <div class="hoja__fondo"></div>
+      <div class="hoja__panel">
+        <div class="hoja__asa"></div>
+        <header class="hoja__cabecera">
+          <h2 class="titulo-serif">${escapar(titulo)}</h2>
+        </header>
+        <div style="padding:4px 22px 26px">
+          <p style="font-size:16.5px;line-height:1.55;margin:0 0 22px">${escapar(texto)}</p>
+          ${doble ? `<label class="casilla"><input type="checkbox" id="conf-doble">
+                     <span>Entiendo lo que va a pasar</span></label>` : ''}
+          <div class="barra-acciones" style="margin:0">
+            <button class="btn btn--neutro" id="conf-no" style="flex:1">Cancelar</button>
+            <button class="btn ${peligro ? 'btn--peligro' : 'btn--principal'}" id="conf-si"
+                    style="flex:1" ${doble ? 'disabled' : ''}>${escapar(aceptar)}</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.append(capa);
+
+    // El Escape global cierra la hoja de abajo. Mientras este diálogo esté
+    // puesto, se lo queda él: si no, al pulsar Escape se cerraría el
+    // formulario en vez del aviso.
+    const porTecla = e => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation(); e.preventDefault();
+      cerrar(false);
+    };
+    document.addEventListener('keydown', porTecla, true);
+
+    let resuelto = false;
+    function cerrar(valor) {
+      if (resuelto) return;
+      resuelto = true;
+      document.removeEventListener('keydown', porTecla, true);
+      capa.remove();
+      resolve(valor);
+    }
 
     if (doble) {
-      cuerpo.querySelector('#conf-doble').onchange = e =>
-        cuerpo.querySelector('#conf-si').disabled = !e.target.checked;
+      capa.querySelector('#conf-doble').onchange = e =>
+        capa.querySelector('#conf-si').disabled = !e.target.checked;
     }
-    cuerpo.querySelector('#conf-no').onclick = () => { alCerrarHoja = null; cerrarHoja(); resolve(false); };
-    cuerpo.querySelector('#conf-si').onclick = () => { alCerrarHoja = null; cerrarHoja(); resolve(true); };
+    capa.querySelector('.hoja__fondo').onclick = () => cerrar(false);
+    capa.querySelector('#conf-no').onclick     = () => cerrar(false);
+    capa.querySelector('#conf-si').onclick     = () => cerrar(true);
   });
 }
 
