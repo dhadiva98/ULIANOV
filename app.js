@@ -9,6 +9,7 @@ import { formularioServicio } from './registro.js';
 import { vistaTarifario, vistaServicios } from './catalogo.js';
 import { vistaClientes } from './clientes.js';
 import { vistaMasajistas } from './masajistas.js';
+import { vistaEventos } from './eventos.js';
 import { vistaAsistencia } from './asistencia.js';
 import { vistaResumen, vistaCaja } from './caja.js';
 import { vistaReportes } from './reportes.js';
@@ -34,6 +35,7 @@ const VISTAS = [
   { separador: true, admin: true },
   { id: 'servicios',   titulo: 'Servicios',      ver: vistaServicios,   admin: true },
   { id: 'masajistas',  titulo: 'Masajistas',     ver: vistaMasajistas,  admin: true },
+  { id: 'eventos',     titulo: 'Eventos',        ver: vistaEventos,     admin: true },
   { id: 'usuarios',    titulo: 'Usuarios',       ver: vistaUsuarios,    admin: true },
   { id: 'auditoria',   titulo: 'Auditoría',      ver: vistaAuditoria,   admin: true },
   { separador: true },
@@ -135,7 +137,7 @@ let canal = null;
 const TABLAS = ['registros_servicios', 'registro_masajistas', 'clientes', 'masajistas',
                 'servicios', 'masajes', 'modalidades', 'duraciones', 'asistencias',
                 'cierres_diarios', 'ajustes_cierre', 'dias_cerrados', 'perfiles',
-                'dispositivos', 'auditoria', 'configuracion'];
+                'dispositivos', 'auditoria', 'configuracion', 'eventos'];
 
 // Qué vistas dependen de qué tabla, para no repintar de más.
 const AFECTA = {
@@ -155,7 +157,10 @@ const AFECTA = {
   perfiles:            ['usuarios'],
   dispositivos:        ['usuarios'],
   auditoria:           ['auditoria'],
-  configuracion:       ['ajustes', 'servicios', 'registro']
+  configuracion:       ['ajustes', 'servicios', 'registro'],
+  // Un evento cambia el precio que sale al registrar, así que si se enciende
+  // desde otra computadora la pantalla de registro tiene que enterarse.
+  eventos:             ['eventos', 'registro', 'tarifario']
 };
 
 let repintarPendiente = null;

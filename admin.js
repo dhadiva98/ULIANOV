@@ -252,7 +252,8 @@ export async function vistaConfiguracion() {
       ej.textContent =
         `En un masaje de S/ 200: una sola masajista cobra ${monto(200 * pct / 100)}; `
       + `en 4 manos, ${monto(200 * pct / 100 / 2)} cada una; `
-      + `en Sorpresa, ${monto(200 * pct / 100)} la principal y ${monto(apo)} la de apoyo.`;
+      + `en Sorpresa, de los S/ 200 salen primero ${monto(apo)} para la de apoyo `
+      + `y la principal gana ${monto(Math.max(200 - apo, 0) * pct / 100)}.`;
     };
     [iPct, iApo].forEach(i => i.addEventListener('input', ejemplo));
     ejemplo();

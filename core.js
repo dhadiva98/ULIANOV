@@ -207,6 +207,71 @@ export function pctAplicable(nombreMasaje, nombreModalidad,
   return general;
 }
 
+// ---------------------------------------------------------------------------
+//  EVENTOS CON DESCUENTO POR FECHA
+//
+//  Espejo de evento_cubre() y descuento_evento() del servidor. Sirve para
+//  precargar el precio mientras se llena el formulario; el número que queda
+//  guardado lo calcula el servidor. Si los dos dejaran de coincidir, la
+//  pantalla mostraría un precio y se cobraría otro, así que se cambian juntos.
+// ---------------------------------------------------------------------------
+const cmpDiaMes = (a, b) => a[0] !== b[0] ? a[0] - b[0] : a[1] - b[1];
+
+export function eventoCubre(e, iso) {
+  if (!e || !iso) return false;
+  const [anio, mes, dia] = String(iso).split('-').map(Number);
+  if (!(mes >= 1 && dia >= 1)) return false;
+  if (e.anio != null && Number(e.anio) !== anio) return false;
+
+  const desde = [Number(e.desde_mes), Number(e.desde_dia)];
+  const hasta = [Number(e.hasta_mes), Number(e.hasta_dia)];
+  const hoy   = [mes, dia];
+
+  return cmpDiaMes(desde, hasta) <= 0
+    // Temporada normal, dentro del mismo año.
+    ? cmpDiaMes(hoy, desde) >= 0 && cmpDiaMes(hoy, hasta) <= 0
+    // Temporada que cruza el Año Nuevo, como del 31/12 al 01/01.
+    : cmpDiaMes(hoy, desde) >= 0 || cmpDiaMes(hoy, hasta) <= 0;
+}
+
+export const nombreEvento = e =>
+  (e?.icono ? e.icono + ' ' : '') + (e?.nombre || '');
+
+// Si coinciden varios el mismo día gana el que más descuenta; no se suman
+// entre ellos.
+export function descuentoEvento(masaje, modalidad, duracion, iso, eventos = []) {
+  const candidatos = (eventos || []).filter(e =>
+    e.activo && eventoCubre(e, iso)
+    && (e.masaje    == null || e.masaje    === masaje)
+    && (e.modalidad == null || e.modalidad === modalidad)
+    && (e.duracion  == null || Number(e.duracion) === Number(duracion)));
+
+  if (!candidatos.length) return { monto: 0, evento: null };
+  const gana = candidatos.reduce((a, b) => Number(b.monto) > Number(a.monto) ? b : a);
+  return { monto: Number(gana.monto) || 0, evento: nombreEvento(gana) };
+}
+
+// Los dos descuentos juntos: el del nivel y el del evento SE SUMAN, con el
+// tope de que entre los dos no pueden pasarse del precio. Si se pasaran se
+// recorta el evento, no el nivel. Espejo de descuentos_aplicables().
+export function descuentosAplicables(
+  { nivel, masaje, modalidad, duracion, precio, fecha,
+    reglas = [], tramos = {}, eventos = [] } = {}) {
+
+  const v = descuentoVip(nivel, precio, duracion, modalidad, reglas, tramos);
+  const e = descuentoEvento(masaje, modalidad, duracion, fecha, eventos);
+
+  const porNivel  = Number(v.monto) || 0;
+  const porEvento = Math.min(Number(e.monto) || 0,
+                             Math.max((Number(precio) || 0) - porNivel, 0));
+
+  return {
+    total:      r2(porNivel + porEvento),
+    porNivel,   reglaNivel: v.regla,
+    porEvento,  evento: porEvento > 0 ? e.evento : null
+  };
+}
+
 // El distintivo del nivel, en un solo sitio para que las cinco pantallas
 // que lo muestran no se desincronicen nunca.
 export function insigniaNivel(nivel, { texto = false } = {}) {
